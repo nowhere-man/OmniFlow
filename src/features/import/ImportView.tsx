@@ -1,123 +1,170 @@
-import { useState } from 'react';
-import { useAppStore } from '../../stores/appStore';
-import { TransactionAPI } from '../../tauri-adapter/transactions';
-import { UploadCloud, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
-import { open } from '@tauri-apps/plugin-dialog';
+import { useMemo, useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { CheckCircle2, FileUp, Loader2, ShieldAlert } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { useAppStore } from "../../stores/appStore";
+import { ImportPreviewItem, TransactionAPI } from "../../tauri-adapter/transactions";
+import { Category } from "../../models";
+import { shortDate, yuan } from "../../lib/format";
 
 export default function ImportView() {
   const { currentLedgerId, accounts, fetchTransactions } = useAppStore();
-  const [selectedAccount, setSelectedAccount] = useState<string>('');
-  const [isImporting, setIsImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [accountId, setAccountId] = useState("");
+  const [preview, setPreview] = useState<ImportPreviewItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
-  const handleSelectFile = async () => {
-    if (!currentLedgerId) return;
-    
-    // Choose default account (Cash) if none selected
-    const targetAccountId = selectedAccount || (accounts.find(a => a.account_type === 'cash')?.id ?? accounts[0]?.id);
-    
-    if (!targetAccountId) {
-      setImportResult({ success: false, message: '没有可用的账户进行导入' });
+  const targetAccountId = accountId || accounts.find((account) => account.account_type === "cash")?.id || accounts[0]?.id || "";
+  const counts = useMemo(() => ({
+    selected: preview.filter((item) => item.selected).length,
+    fuzzy: preview.filter((item) => item.duplicate_status === "fuzzy").length,
+    absolute: preview.filter((item) => item.duplicate_status === "absolute").length,
+  }), [preview]);
+
+  async function ensureCategories() {
+    if (categories.length > 0) return categories;
+    const data = await invoke<Category[]>("list_categories");
+    setCategories(data);
+    return data;
+  }
+
+  async function selectFile() {
+    if (!currentLedgerId || !targetAccountId) {
+      setMessage("请先准备账本和账户");
       return;
     }
+    const selected = await open({
+      multiple: false,
+      filters: [{ name: "Bills", extensions: ["csv", "xls", "xlsx", "json"] }],
+    });
+    if (!selected) return;
 
+    setLoading(true);
+    setMessage(null);
     try {
-      const selected = await open({
-        multiple: false,
-        filters: [{
-          name: 'Bills',
-          extensions: ['csv', 'xls', 'xlsx']
-        }]
-      });
-
-      if (!selected) return;
-
-      setIsImporting(true);
-      setImportResult(null);
-
+      await ensureCategories();
       const filePath = Array.isArray(selected) ? selected[0] : selected;
-      
-      const count = await TransactionAPI.importBill(filePath as string, currentLedgerId, targetAccountId);
-      
-      setImportResult({ success: true, message: `成功导入 ${count} 条交易记录` });
-      fetchTransactions(); // Refresh the list
-      
-    } catch (err: any) {
-      setImportResult({ success: false, message: `导入失败: ${err.toString()}` });
+      const items = await TransactionAPI.parseAndPreview(filePath as string, currentLedgerId, targetAccountId);
+      setPreview(items);
+      setMessage(`已生成 ${items.length} 条预览，绝对重复会自动锁定`);
+    } catch (error: any) {
+      setMessage(`解析失败：${error?.message || error}`);
     } finally {
-      setIsImporting(false);
+      setLoading(false);
     }
-  };
+  }
+
+  async function confirm() {
+    if (!currentLedgerId || !targetAccountId) return;
+    setLoading(true);
+    try {
+      const inserted = await TransactionAPI.confirmImport(currentLedgerId, targetAccountId, preview);
+      setMessage(`已确认入账 ${inserted} 条交易`);
+      setPreview([]);
+      await fetchTransactions();
+    } catch (error: any) {
+      setMessage(`入账失败：${error?.message || error}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function updateItem(previewId: string, patch: Partial<ImportPreviewItem>) {
+    setPreview((items) => items.map((item) => item.preview_id === previewId ? { ...item, ...patch } : item));
+  }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold tracking-tight">导入账单</h1>
-      </div>
-
-      <div className="bg-white p-8 rounded-3xl shadow-sm border border-border">
-        <div className="max-w-xl mx-auto space-y-8">
-          <div className="space-y-4">
-            <h2 className="text-xl font-semibold">1. 选择导入目标账户</h2>
-            <select 
-              className="w-full p-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-              value={selectedAccount}
-              onChange={(e) => setSelectedAccount(e.target.value)}
-            >
-              <option value="">默认现金账户 (自动匹配)</option>
-              {accounts.map(acc => (
-                <option key={acc.id} value={acc.id}>{acc.name} ({acc.account_type})</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-4">
-            <h2 className="text-xl font-semibold">2. 上传账单文件</h2>
-            <div 
-              onClick={!isImporting ? handleSelectFile : undefined}
-              className={`border-2 border-dashed rounded-3xl p-12 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-4
-                ${isImporting ? 'bg-gray-50 border-gray-200 cursor-not-allowed' : 'hover:bg-blue-50/50 hover:border-blue-400 border-gray-300'}`}
-            >
-              <div className={`p-4 rounded-full ${isImporting ? 'bg-gray-100 text-gray-400' : 'bg-blue-100 text-blue-500'}`}>
-                <UploadCloud size={40} />
-              </div>
-              <div>
-                <p className="text-lg font-medium">点击选择对账单文件</p>
-                <p className="text-sm text-gray-500 mt-1">支持 支付宝 (CSV), 微信 (XLSX), 建设银行 (XLS), 京东/美团 等格式</p>
-              </div>
-            </div>
-          </div>
-
-          {isImporting && (
-            <div className="flex items-center justify-center gap-3 text-blue-600 font-medium p-4 bg-blue-50 rounded-xl">
-              <div className="animate-spin h-5 w-5 border-2 border-current border-t-transparent rounded-full" />
-              正在解析与应用规则，请稍候...
-            </div>
-          )}
-
-          {importResult && (
-            <div className={`p-4 rounded-xl flex items-start gap-3 ${importResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-              {importResult.success ? <CheckCircle2 className="shrink-0" /> : <AlertCircle className="shrink-0" />}
-              <div>
-                <h3 className="font-medium">{importResult.success ? '导入成功' : '导入失败'}</h3>
-                <p className="text-sm mt-1 opacity-90">{importResult.message}</p>
-              </div>
-            </div>
-          )}
-
-          <div className="bg-gray-50 p-6 rounded-2xl">
-            <h3 className="flex items-center gap-2 font-medium text-gray-700 mb-3">
-              <FileText size={18} /> 支持的账单导出说明
-            </h3>
-            <ul className="text-sm text-gray-600 space-y-2 list-disc pl-5">
-              <li><strong>支付宝</strong>: 我的 - 账单 - 右上角 - 开具交易流水证明</li>
-              <li><strong>微信支付</strong>: 钱包 - 账单 - 常见问题 - 下载账单</li>
-              <li><strong>建设银行</strong>: 手机银行导出明细 (仅支持 xls 格式)</li>
-              <li>导入时会自动进行重复数据检测与清洗，无需担心重复导入</li>
-            </ul>
-          </div>
+    <div className="page-stack">
+      <section className="page-heading">
+        <div>
+          <div className="eyebrow">import flow</div>
+          <h1 className="page-title">先预览，再放心入账</h1>
         </div>
-      </div>
+        <div className="toolbar">
+          <select className="select-field" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+            <option value="">自动选择现金账户</option>
+            {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+          </select>
+          <button className="primary-button" onClick={selectFile} disabled={loading}>
+            {loading ? <Loader2 size={17} className="animate-spin" /> : <FileUp size={17} />}
+            选择账单
+          </button>
+        </div>
+      </section>
+
+      {message && <div className="panel panel-pad">{message}</div>}
+
+      <section className="metric-grid">
+        <div className="metric-tile"><div className="metric-label"><CheckCircle2 size={16} />待入账</div><strong>{counts.selected}</strong></div>
+        <div className="metric-tile"><div className="metric-label"><ShieldAlert size={16} />疑似重复</div><strong>{counts.fuzzy}</strong></div>
+        <div className="metric-tile"><div className="metric-label"><ShieldAlert size={16} />绝对重复</div><strong>{counts.absolute}</strong></div>
+        <div className="metric-tile"><div className="metric-label">预览总数</div><strong>{preview.length}</strong></div>
+      </section>
+
+      <section className="panel overflow-x-auto">
+        {preview.length === 0 ? (
+          <div className="panel-pad text-center text-[var(--muted)]">选择支付宝、微信、京东、美团、建设银行或青子记账文件后，这里会出现可编辑预览。</div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>入账</th>
+                <th>状态</th>
+                <th>日期</th>
+                <th>商户/备注</th>
+                <th>金额</th>
+                <th>分类</th>
+                <th>账户</th>
+                <th>标签</th>
+                <th>排除</th>
+              </tr>
+            </thead>
+            <tbody>
+              {preview.map((item) => (
+                <tr key={item.preview_id}>
+                  <td>
+                    <input type="checkbox" checked={item.selected} disabled={item.duplicate_status === "absolute"} onChange={(event) => updateItem(item.preview_id, { selected: event.target.checked })} />
+                  </td>
+                  <td><span className={`status-chip chip-${item.duplicate_status}`}>{item.duplicate_status}</span></td>
+                  <td>{shortDate(item.transaction_date)}</td>
+                  <td>
+                    <input className="field w-44" value={item.notes || item.merchant || ""} onChange={(event) => updateItem(item.preview_id, { notes: event.target.value })} />
+                  </td>
+                  <td className={item.transaction_type === "expense" ? "text-[var(--expense)]" : "text-[var(--income)]"}>{yuan(item.amount)}</td>
+                  <td>
+                    <select className="select-field w-36" value={item.category_id || ""} onChange={(event) => updateItem(item.preview_id, { category_id: event.target.value || null })}>
+                      <option value="">未分类</option>
+                      {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                    </select>
+                  </td>
+                  <td>
+                    <select className="select-field w-32" value={item.account_id} onChange={(event) => updateItem(item.preview_id, { account_id: event.target.value })}>
+                      {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                    </select>
+                  </td>
+                  <td>
+                    <input className="field w-36" value={item.tags.join(",")} onChange={(event) => updateItem(item.preview_id, { tags: event.target.value.split(",").map((tag) => tag.trim()).filter(Boolean) })} />
+                  </td>
+                  <td>
+                    <input type="checkbox" checked={item.is_excluded} onChange={(event) => updateItem(item.preview_id, { is_excluded: event.target.checked })} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {preview.length > 0 && (
+        <div className="toolbar justify-end">
+          <button className="ghost-button" onClick={() => setPreview([])}>清空预览</button>
+          <button className="primary-button" onClick={confirm} disabled={loading || counts.selected === 0}>
+            {loading ? <Loader2 size={17} className="animate-spin" /> : <CheckCircle2 size={17} />}
+            确认入账
+          </button>
+        </div>
+      )}
     </div>
   );
 }

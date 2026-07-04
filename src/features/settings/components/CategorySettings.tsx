@@ -9,7 +9,7 @@ export default function CategorySettings() {
   
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
-  const [editType, setEditType] = useState<TransactionType>("Expense");
+  const [editType, setEditType] = useState<TransactionType>("expense");
 
   useEffect(() => {
     loadCategories();
@@ -31,14 +31,14 @@ export default function CategorySettings() {
     const newCat: Category = {
       id: newId,
       name: "",
-      category_type: "Expense",
+      category_type: "expense",
       created_at: Math.floor(Date.now() / 1000),
       updated_at: Math.floor(Date.now() / 1000),
     };
     setCategories([newCat, ...categories]);
     setIsEditing(newId);
     setEditName("");
-    setEditType("Expense");
+    setEditType("expense");
   };
 
   const handleSave = async (id: string) => {
@@ -90,8 +90,8 @@ export default function CategorySettings() {
     return <div className="flex justify-center p-8"><Loader2 className="animate-spin text-primary" /></div>;
   }
 
-  const expenses = categories.filter(c => c.category_type === 'Expense');
-  const incomes = categories.filter(c => c.category_type === 'Income');
+  const expenses = categories.filter(c => c.category_type === 'expense');
+  const incomes = categories.filter(c => c.category_type === 'income');
 
   return (
     <div className="max-w-3xl">
@@ -178,8 +178,8 @@ function CategoryRow({ category, isEditing, editName, setEditName, editType, set
           value={editType}
           onChange={e => setEditType(e.target.value as TransactionType)}
         >
-          <option value="Expense">支出</option>
-          <option value="Income">收入</option>
+          <option value="expense">支出</option>
+          <option value="income">收入</option>
         </select>
         <button onClick={onSave} className="p-1.5 text-green-600 hover:bg-green-50 rounded"><Save size={16} /></button>
         <button onClick={onCancel} className="p-1.5 text-red-500 hover:bg-red-50 rounded"><X size={16} /></button>

@@ -1,27 +1,33 @@
-import { useState } from "react";
 import { Link, Routes, Route, useLocation, Navigate } from "react-router-dom";
-import { Palette, Database, CloudSync, Tags } from "lucide-react";
+import { Palette, Database, CloudSync, Tags, SlidersHorizontal } from "lucide-react";
 import BasicSettings from "./components/BasicSettings";
 import SyncSettings from "./components/SyncSettings";
 import DataSettings from "./components/DataSettings";
 import CategorySettings from "./components/CategorySettings";
+import ManagementSettings from "./components/ManagementSettings";
 
 export default function SettingsView() {
   const location = useLocation();
-  const currentTab = location.pathname.split('/').pop() || 'basic';
 
   const tabs = [
     { id: 'basic', label: '外观与基础', icon: Palette, path: '/settings/basic' },
     { id: 'categories', label: '分类管理', icon: Tags, path: '/settings/categories' },
+    { id: 'management', label: '账本与规则', icon: SlidersHorizontal, path: '/settings/management' },
     { id: 'data', label: '数据安全', icon: Database, path: '/settings/data' },
     { id: 'sync', label: '高级同步', icon: CloudSync, path: '/settings/sync' },
   ];
 
   return (
-    <div className="max-w-5xl mx-auto flex gap-8">
+    <div className="page-stack">
+      <section className="page-heading">
+        <div>
+          <div className="eyebrow">settings</div>
+          <h1 className="page-title">把复杂能力收进清楚的地方</h1>
+        </div>
+      </section>
+      <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-4">
       {/* Settings Sidebar */}
-      <div className="w-56 shrink-0">
-        <h1 className="text-2xl font-bold mb-6 text-foreground">设置</h1>
+      <div className="panel panel-pad">
         <nav className="flex flex-col gap-1">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -45,14 +51,16 @@ export default function SettingsView() {
       </div>
 
       {/* Settings Content Area */}
-      <div className="flex-1 bg-surface border border-border rounded-2xl p-8 min-h-[600px]">
+      <div className="panel panel-pad min-h-[520px]">
         <Routes>
           <Route path="/" element={<Navigate to="basic" replace />} />
           <Route path="basic" element={<BasicSettings />} />
           <Route path="categories" element={<CategorySettings />} />
+          <Route path="management" element={<ManagementSettings />} />
           <Route path="data" element={<DataSettings />} />
           <Route path="sync" element={<SyncSettings />} />
         </Routes>
+      </div>
       </div>
     </div>
   );

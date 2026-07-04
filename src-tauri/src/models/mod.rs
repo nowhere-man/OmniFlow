@@ -135,7 +135,7 @@ pub struct Rule {
     pub name: String,
     pub priority: i64,
     pub match_condition: String, // JSON definition
-    pub action: String, // JSON definition
+    pub action: String,          // JSON definition
     pub created_at: i64,
     pub updated_at: i64,
     pub deleted_at: Option<i64>,
@@ -152,6 +152,23 @@ pub struct PeriodicBill {
     pub account_id: String,
     pub cron_expression: String,
     pub next_date: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub deleted_at: Option<i64>,
+}
+
+/// 待确认周期账单
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PendingConfirmation {
+    pub id: String,
+    pub periodic_bill_id: String,
+    pub transaction_id: Option<String>,
+    pub due_date: i64,
+    pub amount: f64,
+    pub bill_type: TransactionType,
+    pub category_id: Option<String>,
+    pub account_id: String,
+    pub status: String,
     pub created_at: i64,
     pub updated_at: i64,
     pub deleted_at: Option<i64>,

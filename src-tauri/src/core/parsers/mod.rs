@@ -21,6 +21,12 @@ pub struct RawTransaction {
     pub external_id: Option<String>,
     /// 平台自带的分类建议 (用于初始化规则引擎建议)
     pub category_hint: Option<String>,
+    /// 标签 (规则引擎可添加)
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// 是否跳过不入账 (规则引擎设置)
+    #[serde(default)]
+    pub should_skip: bool,
 }
 
 pub trait BillParser: Send + Sync {
@@ -35,8 +41,8 @@ pub trait BillParser: Send + Sync {
 }
 
 pub mod alipay;
-pub mod wechat;
+pub mod ccb;
 pub mod jd;
 pub mod meituan;
-pub mod ccb;
 pub mod qingzi;
+pub mod wechat;

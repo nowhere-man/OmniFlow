@@ -1,112 +1,142 @@
-import { useState } from 'react';
-import { useAppStore } from '../../stores/appStore';
-import { Search, Filter, ArrowUpRight, ArrowDownRight, Tag } from 'lucide-react';
-import { format } from 'date-fns';
+import { useEffect, useState } from "react";
+import { Edit2, Plus, Save, Trash2, X } from "lucide-react";
+import { useAppStore } from "../../stores/appStore";
+import { Transaction, TransactionAPI } from "../../tauri-adapter/transactions";
+import { shortDate, yuan } from "../../lib/format";
+
+const now = () => Math.floor(Date.now() / 1000);
 
 export default function TransactionList() {
-  const { transactions, isLoading } = useAppStore();
-  const [searchTerm, setSearchTerm] = useState('');
+  const { transactions, accounts, currentLedgerId, fetchInitialData, fetchTransactions, isLoading } = useAppStore();
+  const [editing, setEditing] = useState<Transaction | null>(null);
 
-  const filteredTransactions = transactions.filter(t => 
-    t.merchant?.includes(searchTerm) || t.notes?.includes(searchTerm)
-  );
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
 
-  if (isLoading) {
-    return <div className="flex h-full items-center justify-center">Loading transactions...</div>;
+  const defaultAccountId = accounts[0]?.id || "";
+
+  function startNew() {
+    if (!currentLedgerId || !defaultAccountId) return;
+    setEditing({
+      id: window.crypto.randomUUID(),
+      ledger_id: currentLedgerId,
+      account_id: defaultAccountId,
+      category_id: null,
+      transaction_date: now(),
+      amount: 0,
+      transaction_type: "expense",
+      merchant: "",
+      notes: "",
+      tags: [],
+      is_excluded: false,
+      external_source: "manual",
+      external_id: null,
+      created_at: now(),
+      updated_at: now(),
+      deleted_at: null,
+    });
+  }
+
+  async function save() {
+    if (!editing) return;
+    const payload = { ...editing, updated_at: now() };
+    const exists = transactions.some((transaction) => transaction.id === payload.id);
+    if (exists) {
+      await TransactionAPI.updateTransaction(payload);
+    } else {
+      await TransactionAPI.createTransaction(payload);
+    }
+    setEditing(null);
+    await fetchTransactions();
+  }
+
+  async function remove(id: string) {
+    await TransactionAPI.deleteTransaction(id);
+    await fetchTransactions();
+  }
+
+  async function toggleExcluded(transaction: Transaction) {
+    await TransactionAPI.updateTransaction({ ...transaction, is_excluded: !transaction.is_excluded, updated_at: now() });
+    await fetchTransactions();
   }
 
   return (
-    <div className="space-y-6 flex flex-col h-full">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold tracking-tight">交易记录</h1>
-      </div>
-
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-border flex gap-4 items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder="搜索商家、备注..."
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+    <div className="page-stack">
+      <section className="page-heading">
+        <div>
+          <div className="eyebrow">transactions</div>
+          <h1 className="page-title">明细要轻，不要像表格后台</h1>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-xl font-medium transition-colors">
-          <Filter size={20} />
-          筛选
-        </button>
-      </div>
+        <button className="primary-button" onClick={startNew} disabled={!currentLedgerId || !defaultAccountId}><Plus size={17} />新增</button>
+      </section>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-border flex-1 overflow-hidden flex flex-col">
-        <div className="overflow-x-auto flex-1">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-gray-50/80 sticky top-0 backdrop-blur-sm z-10">
+      {editing && (
+        <section className="panel panel-pad">
+          <div className="toolbar">
+            <select className="select-field" value={editing.transaction_type} onChange={(event) => setEditing({ ...editing, transaction_type: event.target.value as "expense" | "income" })}>
+              <option value="expense">支出</option>
+              <option value="income">收入</option>
+            </select>
+            <input className="field" type="number" min="0" step="0.01" value={editing.amount} onChange={(event) => setEditing({ ...editing, amount: Number(event.target.value) })} />
+            <input className="field" value={editing.merchant || ""} placeholder="商户" onChange={(event) => setEditing({ ...editing, merchant: event.target.value })} />
+            <input className="field" value={editing.notes || ""} placeholder="备注" onChange={(event) => setEditing({ ...editing, notes: event.target.value })} />
+            <select className="select-field" value={editing.account_id} onChange={(event) => setEditing({ ...editing, account_id: event.target.value })}>
+              {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+            </select>
+            <label className="inline-flex items-center gap-2 text-sm font-semibold">
+              <input type="checkbox" checked={editing.is_excluded} onChange={(event) => setEditing({ ...editing, is_excluded: event.target.checked })} />
+              不计收支
+            </label>
+            <button className="primary-button" onClick={save}><Save size={17} />保存</button>
+            <button className="ghost-button" onClick={() => setEditing(null)}><X size={17} />取消</button>
+          </div>
+        </section>
+      )}
+
+      <section className="panel overflow-x-auto">
+        {isLoading ? (
+          <div className="panel-pad text-center text-[var(--muted)]">正在载入交易...</div>
+        ) : (
+          <table className="data-table">
+            <thead>
               <tr>
-                <th className="py-4 px-6 font-medium text-gray-500 border-b">时间</th>
-                <th className="py-4 px-6 font-medium text-gray-500 border-b">交易类型</th>
-                <th className="py-4 px-6 font-medium text-gray-500 border-b">商家 & 备注</th>
-                <th className="py-4 px-6 font-medium text-gray-500 border-b">金额</th>
-                <th className="py-4 px-6 font-medium text-gray-500 border-b">标签</th>
-                <th className="py-4 px-6 font-medium text-gray-500 border-b">来源</th>
+                <th>日期</th>
+                <th>商户</th>
+                <th>金额</th>
+                <th>标签</th>
+                <th>来源</th>
+                <th>不计收支</th>
+                <th>操作</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredTransactions.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-gray-400">
-                    暂无交易记录，请导入账单
+            <tbody>
+              {transactions.map((transaction) => (
+                <tr key={transaction.id}>
+                  <td>{shortDate(transaction.transaction_date)}</td>
+                  <td>
+                    <div className="font-semibold">{transaction.merchant || "未命名交易"}</div>
+                    <div className="text-xs text-[var(--muted)]">{transaction.notes || "-"}</div>
+                  </td>
+                  <td className={transaction.transaction_type === "expense" ? "text-[var(--expense)]" : "text-[var(--income)]"}>{yuan(transaction.amount)}</td>
+                  <td>{transaction.tags.length > 0 ? transaction.tags.join(" / ") : "-"}</td>
+                  <td>{transaction.external_source || "manual"}</td>
+                  <td><input type="checkbox" checked={transaction.is_excluded} onChange={() => toggleExcluded(transaction)} /></td>
+                  <td>
+                    <div className="toolbar">
+                      <button className="icon-button" onClick={() => setEditing(transaction)} aria-label="编辑"><Edit2 size={16} /></button>
+                      <button className="icon-button" onClick={() => remove(transaction.id)} aria-label="删除"><Trash2 size={16} /></button>
+                    </div>
                   </td>
                 </tr>
-              ) : (
-                filteredTransactions.map((tx) => (
-                  <tr key={tx.id} className="hover:bg-gray-50/50 transition-colors group">
-                    <td className="py-4 px-6 text-sm text-gray-600">
-                      {format(new Date(tx.transaction_date * 1000), 'yyyy-MM-dd HH:mm')}
-                    </td>
-                    <td className="py-4 px-6">
-                      {tx.transaction_type === 'expense' ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-600">
-                          <ArrowUpRight size={14} /> 支出
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-600">
-                          <ArrowDownRight size={14} /> 收入
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="font-medium text-gray-900">{tx.merchant || '未知商家'}</div>
-                      <div className="text-sm text-gray-500 truncate max-w-[200px]">{tx.notes}</div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className={`font-semibold ${tx.transaction_type === 'expense' ? 'text-gray-900' : 'text-green-600'}`}>
-                        {tx.transaction_type === 'expense' ? '-' : '+'}¥{tx.amount.toFixed(2)}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="flex gap-1 flex-wrap">
-                        {tx.tags.length > 0 ? (
-                          tx.tags.map((tag, idx) => (
-                            <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-xs">
-                              <Tag size={12} /> {tag}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-gray-400 text-xs">-</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-4 px-6 text-sm text-gray-500 uppercase tracking-wider">
-                      {tx.external_source || '-'}
-                    </td>
-                  </tr>
-                ))
+              ))}
+              {transactions.length === 0 && (
+                <tr><td colSpan={7} className="text-center text-[var(--muted)] py-12">还没有交易，先导入账单或手动新增一笔。</td></tr>
               )}
             </tbody>
           </table>
-        </div>
-      </div>
+        )}
+      </section>
     </div>
   );
 }

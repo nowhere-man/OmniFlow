@@ -1,73 +1,95 @@
-import { useState } from 'react';
-import { useAppStore } from '../../stores/appStore';
-import { Search, Calendar, Tag } from 'lucide-react';
-import { format } from 'date-fns';
+import { useEffect, useState } from "react";
+import { Search } from "lucide-react";
+import { useAppStore } from "../../stores/appStore";
+import { SearchResult, TransactionAPI, TransactionFilter } from "../../tauri-adapter/transactions";
+import { shortDate, yuan } from "../../lib/format";
 
 export default function SearchView() {
-  const { transactions } = useAppStore();
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  const searchResults = searchTerm.length > 0 
-    ? transactions.filter(t => 
-        t.merchant?.includes(searchTerm) || 
-        t.notes?.includes(searchTerm) ||
-        t.tags.some(tag => tag.includes(searchTerm)) ||
-        t.amount.toString().includes(searchTerm)
-      )
-    : [];
+  const { currentLedgerId, accounts, fetchInitialData } = useAppStore();
+  const [filter, setFilter] = useState<TransactionFilter>({});
+  const [result, setResult] = useState<SearchResult | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
+
+  async function runSearch(nextFilter = filter) {
+    if (!currentLedgerId) return;
+    setLoading(true);
+    try {
+      setResult(await TransactionAPI.searchTransactions(currentLedgerId, nextFilter));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function patch(patch: TransactionFilter) {
+    const next = { ...filter, ...patch };
+    setFilter(next);
+  }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <h1 className="text-3xl font-bold tracking-tight">全能搜索</h1>
-      
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={24} />
-        <input
-          type="text"
-          placeholder="搜索金额、商户、备注、标签..."
-          className="w-full pl-14 pr-6 py-4 bg-white border border-gray-200 rounded-2xl shadow-sm text-lg focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          autoFocus
-        />
-      </div>
+    <div className="page-stack">
+      <section className="page-heading">
+        <div>
+          <div className="eyebrow">search</div>
+          <h1 className="page-title">按真实条件找账</h1>
+        </div>
+        <button className="primary-button" onClick={() => runSearch()} disabled={loading}><Search size={17} />搜索</button>
+      </section>
 
-      <div className="space-y-4">
-        <p className="text-gray-500 font-medium">
-          {searchTerm.length > 0 ? `找到 ${searchResults.length} 条结果` : '输入任意内容开始搜索'}
-        </p>
+      <section className="panel panel-pad">
+        <div className="toolbar">
+          <input className="field" placeholder="商户或备注" value={filter.keyword || ""} onChange={(event) => patch({ keyword: event.target.value || null })} />
+          <select className="select-field" value={filter.account_id || ""} onChange={(event) => patch({ account_id: event.target.value || null })}>
+            <option value="">全部账户</option>
+            {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+          </select>
+          <input className="field w-28" type="number" placeholder="最小金额" onChange={(event) => patch({ min_amount: event.target.value ? Number(event.target.value) : null })} />
+          <input className="field w-28" type="number" placeholder="最大金额" onChange={(event) => patch({ max_amount: event.target.value ? Number(event.target.value) : null })} />
+          <input className="field" placeholder="标签" value={filter.tag || ""} onChange={(event) => patch({ tag: event.target.value || null })} />
+        </div>
+      </section>
 
-        {searchResults.map(tx => (
-          <div key={tx.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center hover:border-blue-200 transition-colors cursor-pointer group">
-            <div className="flex gap-4 items-center">
-              <div className={`p-3 rounded-xl ${tx.transaction_type === 'expense' ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500'}`}>
-                <Calendar size={20} />
-              </div>
-              <div>
-                <div className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
-                  {tx.merchant || '未知商户'}
-                </div>
-                <div className="text-sm text-gray-500 mt-1 flex gap-3">
-                  <span>{format(new Date(tx.transaction_date * 1000), 'yyyy-MM-dd')}</span>
-                  {tx.notes && <span>• {tx.notes}</span>}
-                </div>
-                {tx.tags.length > 0 && (
-                  <div className="flex gap-1 mt-2">
-                    {tx.tags.map((tag, i) => (
-                      <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md flex items-center gap-1">
-                        <Tag size={10} /> {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className={`text-xl font-bold ${tx.transaction_type === 'expense' ? 'text-gray-900' : 'text-green-600'}`}>
-              {tx.transaction_type === 'expense' ? '-' : '+'}¥{tx.amount.toFixed(2)}
-            </div>
-          </div>
-        ))}
-      </div>
+      {result && (
+        <section className="metric-grid">
+          <div className="metric-tile"><div className="metric-label">结果数</div><strong>{result.transactions.length}</strong></div>
+          <div className="metric-tile"><div className="metric-label">收入汇总</div><strong>{yuan(result.total_income)}</strong></div>
+          <div className="metric-tile"><div className="metric-label">支出汇总</div><strong>{yuan(result.total_expense)}</strong></div>
+          <div className="metric-tile"><div className="metric-label">净额</div><strong>{yuan(result.total_income - result.total_expense)}</strong></div>
+        </section>
+      )}
+
+      <section className="panel overflow-x-auto">
+        {!result ? (
+          <div className="panel-pad text-center text-[var(--muted)]">组合条件后点击搜索，结果和汇总都由后端计算。</div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>日期</th>
+                <th>商户/备注</th>
+                <th>金额</th>
+                <th>标签</th>
+                <th>排除</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.transactions.map((transaction) => (
+                <tr key={transaction.id}>
+                  <td>{shortDate(transaction.transaction_date)}</td>
+                  <td><strong>{transaction.merchant || "未命名交易"}</strong><div className="text-xs text-[var(--muted)]">{transaction.notes || "-"}</div></td>
+                  <td className={transaction.transaction_type === "expense" ? "text-[var(--expense)]" : "text-[var(--income)]"}>{yuan(transaction.amount)}</td>
+                  <td>{transaction.tags.join(" / ") || "-"}</td>
+                  <td>{transaction.is_excluded ? "是" : "否"}</td>
+                </tr>
+              ))}
+              {result.transactions.length === 0 && <tr><td colSpan={5} className="text-center py-12 text-[var(--muted)]">没有匹配交易</td></tr>}
+            </tbody>
+          </table>
+        )}
+      </section>
     </div>
   );
 }

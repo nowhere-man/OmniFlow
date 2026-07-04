@@ -93,6 +93,25 @@ CREATE TABLE IF NOT EXISTS periodic_bills (
     FOREIGN KEY(category_id) REFERENCES categories(id)
 );
 
+CREATE TABLE IF NOT EXISTS pending_confirmations (
+    id TEXT PRIMARY KEY,
+    periodic_bill_id TEXT NOT NULL,
+    transaction_id TEXT DEFAULT NULL,
+    due_date INTEGER NOT NULL,
+    amount REAL NOT NULL,
+    type TEXT NOT NULL,
+    category_id TEXT DEFAULT NULL,
+    account_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER DEFAULT NULL,
+    FOREIGN KEY(periodic_bill_id) REFERENCES periodic_bills(id),
+    FOREIGN KEY(transaction_id) REFERENCES transactions(id),
+    FOREIGN KEY(account_id) REFERENCES accounts(id),
+    FOREIGN KEY(category_id) REFERENCES categories(id)
+);
+
 -- 7. 同步操作日志 (Sync Logs)
 CREATE TABLE IF NOT EXISTS sync_logs (
     id TEXT PRIMARY KEY, -- ULID

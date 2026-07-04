@@ -1,50 +1,69 @@
-import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
-import { LayoutDashboard, ReceiptText, ArrowDownToLine, PieChart, Search, Settings, CreditCard } from "lucide-react";
+import { useEffect } from "react";
+import { BrowserRouter as Router, Navigate, NavLink, Route, Routes } from "react-router-dom";
+import {
+  ArrowDownToLine,
+  BarChart3,
+  LayoutDashboard,
+  ReceiptText,
+  Search,
+  Settings,
+  Sparkles,
+} from "lucide-react";
 import Dashboard from "./features/dashboard/Dashboard";
 import TransactionList from "./features/transactions/TransactionList";
 import ImportView from "./features/import/ImportView";
 import ChartsView from "./features/charts/ChartsView";
 import SearchView from "./features/search/SearchView";
 import SettingsView from "./features/settings/SettingsView";
+import { applyTheme, useSettingsStore } from "./store/useSettingsStore";
 
-function Sidebar() {
-  const navItems = [
-    { icon: LayoutDashboard, label: "仪表盘", path: "/" },
-    { icon: ReceiptText, label: "交易记录", path: "/transactions" },
-    { icon: ArrowDownToLine, label: "导入账单", path: "/import" },
-    { icon: PieChart, label: "图表分析", path: "/charts" },
-    { icon: Search, label: "高级搜索", path: "/search" },
-    { icon: CreditCard, label: "负债管理", path: "/credit" },
-    { icon: Settings, label: "设置", path: "/settings" },
-  ];
+const navItems = [
+  { icon: LayoutDashboard, label: "今日", path: "/" },
+  { icon: BarChart3, label: "分析", path: "/charts" },
+  { icon: ArrowDownToLine, label: "导入", path: "/import" },
+  { icon: ReceiptText, label: "明细", path: "/transactions" },
+  { icon: Search, label: "搜索", path: "/search" },
+  { icon: Settings, label: "设置", path: "/settings" },
+];
 
+function AppNav() {
   return (
-    <div className="w-64 h-screen bg-surface border-r border-border flex flex-col p-4">
-      <div className="text-xl font-bold mb-8 pl-2 flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white">O</div>
-        <span>OmniFlow</span>
-      </div>
-      <nav className="flex-1 flex flex-col gap-2">
-        {navItems.map((item) => {
+    <>
+      <header className="app-header">
+        <NavLink to="/" className="brand-mark" aria-label="OmniFlow">
+          <span className="brand-icon"><Sparkles size={18} /></span>
+          <span className="brand-copy">
+            <strong>OmniFlow</strong>
+            <small>flowing money, clear mind</small>
+          </span>
+        </NavLink>
+        <nav className="desktop-nav">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink key={item.path} to={item.path} className={({ isActive }) => `nav-pill ${isActive ? "active" : ""}`}>
+                <Icon size={17} />
+                <span>{item.label}</span>
+              </NavLink>
+            );
+          })}
+        </nav>
+      </header>
+
+      <nav className="mobile-nav" aria-label="底部导航">
+        {navItems.slice(0, 5).map((item) => {
           const Icon = item.icon;
           return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-background text-surface-foreground transition-colors"
-            >
-              <Icon size={20} className="text-primary/80" />
-              <span className="font-medium text-sm">{item.label}</span>
-            </Link>
+            <NavLink key={item.path} to={item.path} className={({ isActive }) => `mobile-nav-item ${isActive ? "active" : ""}`}>
+              <Icon size={20} />
+              <span>{item.label}</span>
+            </NavLink>
           );
         })}
       </nav>
-    </div>
+    </>
   );
 }
-
-import { useEffect } from "react";
-import { useSettingsStore, applyTheme } from "./store/useSettingsStore";
 
 export default function App() {
   const theme = useSettingsStore((state) => state.theme);
@@ -55,16 +74,17 @@ export default function App() {
 
   return (
     <Router>
-      <div className="flex w-screen h-screen bg-background overflow-hidden text-foreground">
-        <Sidebar />
-        <main className="flex-1 overflow-y-auto p-8">
+      <div className="app-shell">
+        <AppNav />
+        <main className="app-main">
           <Routes>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/transactions" element={<TransactionList />} />
-            <Route path="/import" element={<ImportView />} />
             <Route path="/charts" element={<ChartsView />} />
+            <Route path="/import" element={<ImportView />} />
+            <Route path="/transactions" element={<TransactionList />} />
             <Route path="/search" element={<SearchView />} />
             <Route path="/settings/*" element={<SettingsView />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
       </div>

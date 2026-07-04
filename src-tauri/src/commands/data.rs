@@ -1,14 +1,17 @@
-use tauri::AppHandle;
-use tauri::Manager;
+use crate::adapters::sqlite_store::SqliteStore;
 use crate::error::AppError;
 use std::fs;
-use crate::adapters::sqlite_store::SqliteStore;
+use tauri::AppHandle;
+use tauri::Manager;
 
 #[tauri::command]
 pub fn export_database(app: AppHandle, target_path: String) -> Result<(), AppError> {
-    let app_dir = app.path().app_data_dir().map_err(|e| AppError::IoError(e.to_string()))?;
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::IoError(e.to_string()))?;
     let db_path = app_dir.join("ominiflow.db");
-    
+
     if db_path.exists() {
         fs::copy(db_path, target_path).map_err(|e| AppError::IoError(e.to_string()))?;
         Ok(())
@@ -27,8 +30,9 @@ pub fn clear_all_data(store: tauri::State<'_, SqliteStore>) -> Result<(), AppErr
         DELETE FROM accounts;
         DELETE FROM ledgers;
         DELETE FROM categories;
-        "
-    ).map_err(|e| AppError::DatabaseError(e.to_string()))?;
-    
+        ",
+    )
+    .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
     Ok(())
 }

@@ -1,11 +1,13 @@
 use crate::error::AppError;
 use crate::ports::crypto::CryptoProvider;
-use ring::aead::{Aad, BoundKey, Nonce, NonceSequence, OpeningKey, SealingKey, UnboundKey, AES_256_GCM};
+use base64ct::{Base64, Encoding};
+use ring::aead::{
+    Aad, BoundKey, Nonce, NonceSequence, OpeningKey, SealingKey, UnboundKey, AES_256_GCM,
+};
 use ring::error::Unspecified;
 use ring::pbkdf2;
 use ring::rand::{SecureRandom, SystemRandom};
 use std::num::NonZeroU32;
-use base64ct::{Base64, Encoding};
 
 pub struct AesCrypto;
 
@@ -45,12 +47,14 @@ impl NonceSequence for OneNonceSequence {
 impl CryptoProvider for AesCrypto {
     fn encrypt(&self, plaintext: &[u8], password: &str) -> Result<String, AppError> {
         let rand = SystemRandom::new();
-        
+
         let mut salt = [0u8; 16];
-        rand.fill(&mut salt).map_err(|_| AppError::CryptoError("Failed to generate salt".into()))?;
-        
+        rand.fill(&mut salt)
+            .map_err(|_| AppError::CryptoError("Failed to generate salt".into()))?;
+
         let mut nonce_bytes = [0u8; 12];
-        rand.fill(&mut nonce_bytes).map_err(|_| AppError::CryptoError("Failed to generate nonce".into()))?;
+        rand.fill(&mut nonce_bytes)
+            .map_err(|_| AppError::CryptoError("Failed to generate nonce".into()))?;
         let nonce = Nonce::assume_unique_for_key(nonce_bytes);
 
         let key = self.derive_key(password, &salt);
@@ -59,7 +63,8 @@ impl CryptoProvider for AesCrypto {
         let mut sealing_key = SealingKey::new(unbound_key, OneNonceSequence::new(nonce));
 
         let mut in_out = plaintext.to_vec();
-        sealing_key.seal_in_place_append_tag(Aad::empty(), &mut in_out)
+        sealing_key
+            .seal_in_place_append_tag(Aad::empty(), &mut in_out)
             .map_err(|_| AppError::CryptoError("Encryption failed".into()))?;
 
         // Format: version(1 byte) + salt(16) + nonce(12) + ciphertext_with_tag
@@ -96,7 +101,8 @@ impl CryptoProvider for AesCrypto {
             .map_err(|_| AppError::CryptoError("Failed to create unbound key".into()))?;
         let mut opening_key = OpeningKey::new(unbound_key, OneNonceSequence::new(nonce));
 
-        let decrypted_data = opening_key.open_in_place(Aad::empty(), &mut in_out)
+        let decrypted_data = opening_key
+            .open_in_place(Aad::empty(), &mut in_out)
             .map_err(|_| AppError::CryptoError("Decryption failed (Wrong password?)".into()))?;
 
         Ok(decrypted_data.to_vec())
