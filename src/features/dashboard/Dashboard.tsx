@@ -57,7 +57,7 @@ export default function Dashboard() {
 
   const flowOption = useMemo(() => ({
     color: ["#10b981", "#ef4444"],
-    tooltip: { trigger: "axis", backgroundColor: "rgba(15,23,42,0.94)", borderWidth: 0, textStyle: { color: "#fff" } },
+    tooltip: { trigger: "axis", backgroundColor: "rgba(15,23,42,0.94)", borderWidth: 0, borderRadius: 8, textStyle: { color: "#fff", fontSize: 13 } },
     grid: { left: 0, right: 0, top: 8, bottom: 0, containLabel: false },
     xAxis: { type: "category", show: false, data: trend.map((item) => item.date.slice(5)) },
     yAxis: { type: "value", show: false },
@@ -103,7 +103,7 @@ export default function Dashboard() {
     <div className="home-workbench">
       <section className="today-strip">
         <div className="balance-stage">
-          <div className="stage-kicker"><WalletCards size={16} /> 今日</div>
+          <div className="stage-kicker"><WalletCards size={16} /> 总览</div>
           <div className="balance-row">
             <div>
               <span>账户余额</span>

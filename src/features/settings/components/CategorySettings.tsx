@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Plus, Trash2, Edit2, Loader2, Save, X } from "lucide-react";
 import { Category, TransactionType } from "../../../models";
+import { Select } from "../../../components/ui/Select";
 
 export default function CategorySettings() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -180,22 +181,24 @@ function CategoryRow({ category, isEditing, editName, setEditName, editType, set
           onChange={e => setEditName(e.target.value)}
           placeholder="分类名称"
         />
-        <select 
-          className="select-field field-xs"
+        <Select
+          className="field-xs"
           value={editType}
-          onChange={e => setEditType(e.target.value as TransactionType)}
-        >
-          <option value="expense">支出</option>
-          <option value="income">收入</option>
-        </select>
-        <select
-          className="select-field field-sm"
+          onChange={(val) => setEditType(val as TransactionType)}
+          options={[
+            { value: "expense", label: "支出" },
+            { value: "income", label: "收入" },
+          ]}
+        />
+        <Select
+          className="field-sm"
           value={editParentId}
-          onChange={e => setEditParentId(e.target.value)}
-        >
-          <option value="">一级分类</option>
-          {parentOptions.map((item: Category) => <option key={item.id} value={item.id}>{item.name} 的二级分类</option>)}
-        </select>
+          onChange={(val) => setEditParentId(val)}
+          options={[
+            { value: "", label: "一级分类" },
+            ...parentOptions.map((item: Category) => ({ value: item.id, label: `${item.name} 的二级分类` })),
+          ]}
+        />
         <button onClick={onSave} className="icon-button success-icon" aria-label="保存"><Save size={16} /></button>
         <button onClick={onCancel} className="icon-button danger-icon" aria-label="取消"><X size={16} /></button>
       </div>

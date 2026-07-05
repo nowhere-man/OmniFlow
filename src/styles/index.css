@@ -1,6 +1,6 @@
 @layer base {
   :root {
-    --background: #f4f7fb;
+    --background: #f6f6f4;
     --foreground: #111827;
     --primary: #0f6cbd;
     --primary-foreground: #ffffff;
@@ -15,7 +15,7 @@
     --asset: #0f6cbd;
     --risk: #9a6700;
     --ink: #111827;
-    --mica: #f4f7fb;
+    --mica: #f6f6f4;
     --acrylic: rgba(255, 255, 255, 0.72);
     --acrylic-strong: rgba(255, 255, 255, 0.88);
     --subtle: rgba(17, 24, 39, 0.045);
@@ -63,11 +63,11 @@
     min-width: 320px;
     margin: 0;
     background:
-      radial-gradient(circle at 18% -12%, rgba(15, 108, 189, 0.16), transparent 34rem),
+      radial-gradient(circle at 18% -12%, rgba(15, 108, 189, 0.10), transparent 34rem),
       linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0) 18rem),
       var(--mica);
     color: var(--foreground);
-    font-family: "Segoe UI Variable", "Segoe UI", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: Inter, "Segoe UI Variable", "Segoe UI", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     letter-spacing: 0;
   }
 
@@ -137,10 +137,10 @@
     inset: 0;
     z-index: -1;
     background-image:
-      linear-gradient(90deg, rgba(17, 24, 39, 0.035) 1px, transparent 1px),
-      linear-gradient(180deg, rgba(17, 24, 39, 0.032) 1px, transparent 1px);
+      linear-gradient(90deg, rgba(17, 24, 39, 0.02) 1px, transparent 1px),
+      linear-gradient(180deg, rgba(17, 24, 39, 0.018) 1px, transparent 1px);
     background-size: 64px 64px;
-    mask-image: linear-gradient(180deg, black, transparent 74%);
+    mask-image: linear-gradient(180deg, black, transparent 58%);
   }
 
   .workspace-main {
@@ -177,24 +177,9 @@
     text-decoration: none;
   }
 
-  .brand-lockup span:last-child {
-    display: grid;
-    min-width: 0;
-    line-height: 1.08;
-  }
-
   .brand-lockup strong {
     font-size: 15px;
     font-weight: 760;
-  }
-
-  .brand-lockup small {
-    overflow: hidden;
-    color: var(--muted);
-    font-size: 11px;
-    font-weight: 560;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .brand-orb {
@@ -541,12 +526,122 @@
 
   .field:focus,
   .select-field:focus,
+  .select-field.open,
   .text-field:focus,
   .money-input:focus,
   .search-field:focus-within {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px var(--focus);
     background: var(--surface);
+  }
+
+  /* --- Custom Select Component --- */
+  .custom-select-container {
+    position: relative;
+    width: 100%;
+  }
+
+  button.select-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    cursor: default;
+    padding-right: 11px; /* Override native select padding */
+  }
+
+  button.select-trigger.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .select-value {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .select-chevron {
+    flex-shrink: 0;
+    color: var(--muted);
+    transition: transform var(--motion-fast) var(--ease);
+  }
+
+  .select-chevron.open {
+    transform: rotate(180deg);
+  }
+
+  .select-popover {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 100;
+    width: 100%;
+    min-width: 160px;
+    max-height: 280px;
+    overflow-y: auto;
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    border-radius: var(--radius);
+    background: var(--acrylic-strong);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04);
+  }
+
+  .select-list {
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+  }
+
+  .select-empty {
+    padding: 12px;
+    color: var(--muted);
+    text-align: center;
+    font-size: 13px;
+  }
+
+  .select-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--foreground);
+    font-family: inherit;
+    font-size: 14px;
+    text-align: left;
+    cursor: default;
+    transition: background var(--motion-fast) var(--ease);
+  }
+
+  .select-option:hover,
+  .select-option:focus-visible {
+    background: var(--subtle);
+    outline: none;
+  }
+
+  .select-option.selected {
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    color: var(--primary);
+    font-weight: 560;
+  }
+
+  .option-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .option-check {
+    flex-shrink: 0;
+    margin-left: 8px;
+    color: var(--primary);
   }
 
   .primary-button,
@@ -1403,10 +1498,6 @@
 
     .mobile-taskbar {
       display: grid;
-    }
-
-    .brand-lockup small {
-      display: none;
     }
 
     .workspace-main {

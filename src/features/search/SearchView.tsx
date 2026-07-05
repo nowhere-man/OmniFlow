@@ -3,6 +3,7 @@ import { Search } from "lucide-react";
 import { useAppStore } from "../../stores/appStore";
 import { SearchResult, TransactionAPI, TransactionFilter } from "../../tauri-adapter/transactions";
 import { shortDate, yuan } from "../../lib/format";
+import { Select } from "../../components/ui/Select";
 
 export default function SearchView() {
   const { currentLedgerId, accounts, fetchInitialData } = useAppStore();
@@ -33,8 +34,8 @@ export default function SearchView() {
     <div className="page-stack">
       <section className="page-heading">
         <div>
-          <div className="eyebrow">search</div>
-          <h1 className="page-title">按真实条件找账</h1>
+          <div className="eyebrow">搜索</div>
+          <h1 className="page-title">搜索交易</h1>
         </div>
         <button className="primary-button" onClick={() => runSearch()} disabled={loading}><Search size={17} />搜索</button>
       </section>
@@ -42,10 +43,14 @@ export default function SearchView() {
       <section className="panel panel-pad">
         <div className="toolbar">
           <input className="field" placeholder="商户或备注" value={filter.keyword || ""} onChange={(event) => patch({ keyword: event.target.value || null })} />
-          <select className="select-field" value={filter.account_id || ""} onChange={(event) => patch({ account_id: event.target.value || null })}>
-            <option value="">全部账户</option>
-            {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-          </select>
+          <Select
+            value={filter.account_id || ""}
+            onChange={(val) => patch({ account_id: val || null })}
+            options={[
+              { value: "", label: "全部账户" },
+              ...accounts.map((account) => ({ value: account.id, label: account.name })),
+            ]}
+          />
           <input className="field field-xs" type="number" placeholder="最小金额" onChange={(event) => patch({ min_amount: event.target.value ? Number(event.target.value) : null })} />
           <input className="field field-xs" type="number" placeholder="最大金额" onChange={(event) => patch({ max_amount: event.target.value ? Number(event.target.value) : null })} />
           <input className="field" placeholder="标签" value={filter.tag || ""} onChange={(event) => patch({ tag: event.target.value || null })} />

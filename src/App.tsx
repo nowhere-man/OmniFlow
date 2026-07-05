@@ -19,11 +19,11 @@ import SettingsView from "./features/settings/SettingsView";
 import { applyTheme, useSettingsStore } from "./store/useSettingsStore";
 
 const navItems = [
-  { icon: Home, label: "今日", path: "/" },
-  { icon: ListTree, label: "钱流", path: "/transactions" },
+  { icon: Home, label: "总览", path: "/" },
+  { icon: ListTree, label: "明细", path: "/transactions" },
   { icon: FileDown, label: "导入", path: "/import" },
   { icon: AreaChart, label: "分析", path: "/charts" },
-  { icon: Search, label: "找账", path: "/search" },
+  { icon: Search, label: "搜索", path: "/search" },
   { icon: Settings, label: "设置", path: "/settings" },
 ];
 
@@ -33,10 +33,7 @@ function AppChrome() {
       <header className="workspace-topbar">
         <NavLink to="/" className="brand-lockup" aria-label="OmniFlow">
           <span className="brand-orb"><Banknote size={18} /></span>
-          <span>
-            <strong>OmniFlow</strong>
-            <small>Personal money flow</small>
-          </span>
+          <strong>OmniFlow</strong>
         </NavLink>
 
         <nav className="task-switcher" aria-label="主导航">

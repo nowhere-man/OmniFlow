@@ -21,8 +21,8 @@ export default function SettingsView() {
     <div className="page-stack">
       <section className="page-heading">
         <div>
-          <div className="eyebrow">settings</div>
-          <h1 className="page-title">把复杂能力收进清楚的地方</h1>
+          <div className="eyebrow">设置</div>
+          <h1 className="page-title">设置</h1>
         </div>
       </section>
       <div className="settings-layout">

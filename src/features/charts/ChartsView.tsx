@@ -56,7 +56,7 @@ export default function ChartsView() {
 
   const trendOption = useMemo(() => ({
     color: ["#7fb8ad", "#ee6f6a", "#f2c76e"],
-    tooltip: { trigger: "axis", backgroundColor: "rgba(12,12,13,0.94)", borderWidth: 0, textStyle: { color: "#fff" }, valueFormatter: (value: number) => yuan(value) },
+    tooltip: { trigger: "axis", backgroundColor: "rgba(12,12,13,0.94)", borderWidth: 0, borderRadius: 8, textStyle: { color: "#fff", fontSize: 13 }, valueFormatter: (value: number) => yuan(value) },
     legend: { top: 0, right: 0, icon: "roundRect", textStyle: { color: "var(--muted)", fontWeight: 650 } },
     grid: { left: 8, right: 10, top: 46, bottom: 8, containLabel: true },
     xAxis: { type: "category", data: trend.map((item) => item.date), axisTick: { show: false }, axisLine: { lineStyle: { color: "rgba(128,128,128,0.2)" } }, axisLabel: { color: "var(--muted)" } },
@@ -84,8 +84,8 @@ export default function ChartsView() {
     <div className="page-stack">
       <section className="page-heading">
         <div>
-          <div className="eyebrow">analysis</div>
-          <h1 className="page-title">图表有叙事感，才值得打开</h1>
+          <div className="eyebrow">分析</div>
+          <h1 className="page-title">财务分析</h1>
         </div>
         <div className="toolbar chart-toolbar">
           {(["week", "month", "year", "range"] as PeriodMode[]).map((value) => (

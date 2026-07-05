@@ -5,6 +5,7 @@ import { useAppStore } from "../../stores/appStore";
 import { Transaction, TransactionAPI } from "../../tauri-adapter/transactions";
 import { shortDate, yuan } from "../../lib/format";
 import { Category } from "../../models";
+import { Select } from "../../components/ui/Select";
 
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -93,8 +94,8 @@ export default function TransactionList() {
     <div className="money-flow-page">
       <section className="flow-command">
         <div>
-          <span>钱流</span>
-          <h1>每一笔都能顺手处理</h1>
+          <span>明细</span>
+          <h1>交易明细</h1>
         </div>
         <div className="flow-command-tools">
           <label className="search-field">
@@ -165,13 +166,19 @@ export default function TransactionList() {
                 <input className="field" value={editing.merchant || ""} placeholder="商户" onChange={(event) => setEditing({ ...editing, merchant: event.target.value })} />
                 <input className="field" value={editing.notes || ""} placeholder="备注" onChange={(event) => setEditing({ ...editing, notes: event.target.value })} />
                 <input className="field" type="datetime-local" value={toDateTimeInput(editing.transaction_date)} onChange={(event) => setEditing({ ...editing, transaction_date: Math.floor(new Date(event.target.value).getTime() / 1000) })} />
-                <select className="select-field" value={editing.account_id} onChange={(event) => setEditing({ ...editing, account_id: event.target.value })}>
-                  {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                </select>
-                <select className="select-field" value={editing.category_id || ""} onChange={(event) => setEditing({ ...editing, category_id: event.target.value || null })}>
-                  <option value="">未分类</option>
-                  {categoryOptions(categories).map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}
-                </select>
+                <Select
+                  value={editing.account_id}
+                  onChange={(val) => setEditing({ ...editing, account_id: val })}
+                  options={accounts.map((account) => ({ value: account.id, label: account.name }))}
+                />
+                <Select
+                  value={editing.category_id || ""}
+                  onChange={(val) => setEditing({ ...editing, category_id: val || null })}
+                  options={[
+                    { value: "", label: "未分类" },
+                    ...categoryOptions(categories).map((category) => ({ value: category.id, label: category.label })),
+                  ]}
+                />
                 <input className="field" value={editing.tags.join(",")} placeholder="标签，用逗号分隔" onChange={(event) => setEditing({ ...editing, tags: event.target.value.split(",").map((tag) => tag.trim()).filter(Boolean) })} />
                 <label className="check-row">
                   <input type="checkbox" checked={editing.is_excluded} onChange={(event) => setEditing({ ...editing, is_excluded: event.target.checked })} />

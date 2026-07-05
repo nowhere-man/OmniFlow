@@ -6,6 +6,7 @@ import { useAppStore } from "../../stores/appStore";
 import { ImportPreviewItem, Rule, TransactionAPI } from "../../tauri-adapter/transactions";
 import { Category } from "../../models";
 import { shortDate, yuan } from "../../lib/format";
+import { Select } from "../../components/ui/Select";
 
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -199,14 +200,18 @@ export default function ImportView() {
     <div className="page-stack">
       <section className="page-heading">
         <div>
-          <div className="eyebrow">import flow</div>
-          <h1 className="page-title">先预览，再放心入账</h1>
+          <div className="eyebrow">导入</div>
+          <h1 className="page-title">导入账单</h1>
         </div>
         <div className="toolbar">
-          <select className="select-field" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
-            <option value="">自动选择现金账户</option>
-            {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-          </select>
+          <Select
+            value={accountId}
+            onChange={(val) => setAccountId(val)}
+            options={[
+              { value: "", label: "自动选择现金账户" },
+              ...accounts.map((account) => ({ value: account.id, label: account.name })),
+            ]}
+          />
           <button className="primary-button" onClick={selectFile} disabled={loading}>
             {loading ? <Loader2 size={17} className="spin" /> : <FileUp size={17} />}
             选择账单
@@ -256,11 +261,15 @@ export default function ImportView() {
           <div className="rule-form">
             <input className="field" placeholder="规则名称" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
             <div className="form-grid-two">
-              <select className="select-field" value={draft.matchField} onChange={(event) => setDraft({ ...draft, matchField: event.target.value as RuleDraft["matchField"] })}>
-                <option value="merchant_keyword">商户包含</option>
-                <option value="notes_keyword">备注包含</option>
-                <option value="regex">正则匹配</option>
-              </select>
+              <Select
+                value={draft.matchField}
+                onChange={(val) => setDraft({ ...draft, matchField: val as RuleDraft["matchField"] })}
+                options={[
+                  { value: "merchant_keyword", label: "商户包含" },
+                  { value: "notes_keyword", label: "备注包含" },
+                  { value: "regex", label: "正则匹配" },
+                ]}
+              />
               <input className="field" placeholder="命中内容" value={draft.keyword} onChange={(event) => setDraft({ ...draft, keyword: event.target.value })} />
             </div>
             <div className="form-grid-two">
@@ -268,14 +277,22 @@ export default function ImportView() {
               <input className="field" type="number" placeholder="最大金额" value={draft.maxAmount} onChange={(event) => setDraft({ ...draft, maxAmount: event.target.value })} />
             </div>
             <div className="form-grid-two">
-              <select className="select-field" value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}>
-                <option value="">不改分类</option>
-                {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-              </select>
-              <select className="select-field" value={draft.accountId} onChange={(event) => setDraft({ ...draft, accountId: event.target.value })}>
-                <option value="">不改账户</option>
-                {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-              </select>
+              <Select
+                value={draft.categoryId}
+                onChange={(val) => setDraft({ ...draft, categoryId: val })}
+                options={[
+                  { value: "", label: "不改分类" },
+                  ...categories.map((category) => ({ value: category.id, label: category.name })),
+                ]}
+              />
+              <Select
+                value={draft.accountId}
+                onChange={(val) => setDraft({ ...draft, accountId: val })}
+                options={[
+                  { value: "", label: "不改账户" },
+                  ...accounts.map((account) => ({ value: account.id, label: account.name })),
+                ]}
+              />
             </div>
             <input className="field" placeholder="添加标签，用逗号分隔" value={draft.tags} onChange={(event) => setDraft({ ...draft, tags: event.target.value })} />
             <input className="field" placeholder="覆盖备注，可留空" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
@@ -319,15 +336,23 @@ export default function ImportView() {
                   </td>
                   <td className={item.transaction_type === "expense" ? "amount-expense" : "amount-income"}>{yuan(item.amount)}</td>
                   <td>
-                    <select className="select-field field-sm" value={item.category_id || ""} onChange={(event) => updateItem(item.preview_id, { category_id: event.target.value || null })}>
-                      <option value="">未分类</option>
-                      {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                    </select>
+                    <Select
+                      className="field-sm"
+                      value={item.category_id || ""}
+                      onChange={(val) => updateItem(item.preview_id, { category_id: val || null })}
+                      options={[
+                        { value: "", label: "未分类" },
+                        ...categories.map((category) => ({ value: category.id, label: category.name })),
+                      ]}
+                    />
                   </td>
                   <td>
-                    <select className="select-field field-sm" value={item.account_id} onChange={(event) => updateItem(item.preview_id, { account_id: event.target.value })}>
-                      {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                    </select>
+                    <Select
+                      className="field-sm"
+                      value={item.account_id}
+                      onChange={(val) => updateItem(item.preview_id, { account_id: val })}
+                      options={accounts.map((account) => ({ value: account.id, label: account.name }))}
+                    />
                   </td>
                   <td>
                     <input className="field field-sm" value={item.tags.join(",")} onChange={(event) => updateItem(item.preview_id, { tags: event.target.value.split(",").map((tag) => tag.trim()).filter(Boolean) })} />
