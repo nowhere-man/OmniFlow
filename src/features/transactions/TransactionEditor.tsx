@@ -16,6 +16,8 @@ interface TransactionEditorProps {
   categories: Category[];
 }
 
+import { CategoryIcon } from "../../components/ui/CategoryIcon";
+
 function categoryOptions(categories: Category[]) {
   const parents = categories.filter((category) => !category.parent_id);
   const childrenByParent = new Map<string, Category[]>();
@@ -24,8 +26,14 @@ function categoryOptions(categories: Category[]) {
     childrenByParent.set(category.parent_id, [...(childrenByParent.get(category.parent_id) || []), category]);
   }
   return parents.flatMap((parent) => [
-    { id: parent.id, label: parent.name },
-    ...(childrenByParent.get(parent.id) || []).map((child) => ({ id: child.id, label: `${parent.name} / ${child.name}` })),
+    { 
+      id: parent.id, 
+      label: <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>{parent.icon && <CategoryIcon name={parent.icon} size={14} />} {parent.name}</div> 
+    },
+    ...(childrenByParent.get(parent.id) || []).map((child) => ({ 
+      id: child.id, 
+      label: <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><div style={{ width: 14 }}/> {parent.name} / {child.name}</div> 
+    })),
   ]);
 }
 

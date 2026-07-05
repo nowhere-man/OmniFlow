@@ -80,6 +80,7 @@ impl SqliteStore {
                 name: name.to_string(),
                 category_type: TransactionType::Expense,
                 parent_id: None,
+                icon: None,
                 created_at: now,
                 updated_at: now,
                 deleted_at: None,
@@ -94,6 +95,7 @@ impl SqliteStore {
                 name: name.to_string(),
                 category_type: TransactionType::Income,
                 parent_id: None,
+                icon: None,
                 created_at: now,
                 updated_at: now,
                 deleted_at: None,
@@ -258,12 +260,13 @@ impl LedgerStore for SqliteStore {
     fn create_category(&self, category: &Category) -> Result<(), AppError> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
-            "INSERT INTO categories (id, name, type, parent_id, created_at, updated_at, deleted_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO categories (id, name, type, parent_id, icon, created_at, updated_at, deleted_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 category.id,
                 category.name,
                 category.category_type.to_string(),
                 category.parent_id,
+                category.icon,
                 category.created_at,
                 category.updated_at,
                 category.deleted_at
@@ -274,7 +277,7 @@ impl LedgerStore for SqliteStore {
 
     fn list_categories(&self) -> Result<Vec<Category>, AppError> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT id, name, type, parent_id, created_at, updated_at, deleted_at FROM categories WHERE deleted_at IS NULL")?;
+        let mut stmt = conn.prepare("SELECT id, name, type, parent_id, icon, created_at, updated_at, deleted_at FROM categories WHERE deleted_at IS NULL")?;
         let categories = stmt
             .query_map([], |row| {
                 let type_str: String = row.get(2)?;
@@ -285,9 +288,10 @@ impl LedgerStore for SqliteStore {
                     name: row.get(1)?,
                     category_type,
                     parent_id: row.get(3)?,
-                    created_at: row.get(4)?,
-                    updated_at: row.get(5)?,
-                    deleted_at: row.get(6)?,
+                    icon: row.get(4)?,
+                    created_at: row.get(5)?,
+                    updated_at: row.get(6)?,
+                    deleted_at: row.get(7)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -297,11 +301,12 @@ impl LedgerStore for SqliteStore {
     fn update_category(&self, category: &Category) -> Result<(), AppError> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
-            "UPDATE categories SET name = ?1, type = ?2, parent_id = ?3, updated_at = ?4, deleted_at = ?5 WHERE id = ?6",
+            "UPDATE categories SET name = ?1, type = ?2, parent_id = ?3, icon = ?4, updated_at = ?5, deleted_at = ?6 WHERE id = ?7",
             params![
                 category.name,
                 category.category_type.to_string(),
                 category.parent_id,
+                category.icon,
                 category.updated_at,
                 category.deleted_at,
                 category.id

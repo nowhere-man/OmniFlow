@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { Plus, Trash2, Edit2, Loader2, Save, X } from "lucide-react";
 import { Category, TransactionType } from "../../../models";
 import { Select } from "../../../components/ui/Select";
+import { IconPicker } from "../../../components/ui/IconPicker";
+import { CategoryIcon } from "../../../components/ui/CategoryIcon";
 
 export default function CategorySettings() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -12,6 +14,7 @@ export default function CategorySettings() {
   const [editName, setEditName] = useState("");
   const [editType, setEditType] = useState<TransactionType>("expense");
   const [editParentId, setEditParentId] = useState("");
+  const [editIcon, setEditIcon] = useState<string | null>(null);
 
   useEffect(() => {
     loadCategories();
@@ -42,6 +45,7 @@ export default function CategorySettings() {
     setEditName("");
     setEditType("expense");
     setEditParentId("");
+    setEditIcon(null);
   };
 
   const handleSave = async (id: string) => {
@@ -54,6 +58,7 @@ export default function CategorySettings() {
         name: editName.trim(),
         category_type: editType,
         parent_id: editParentId || null,
+        icon: editIcon || null,
         created_at: Math.floor(Date.now() / 1000),
         updated_at: Math.floor(Date.now() / 1000),
         deleted_at: null,
@@ -129,10 +134,12 @@ export default function CategorySettings() {
                 setEditType={setEditType}
                 editParentId={editParentId}
                 setEditParentId={setEditParentId}
+                editIcon={editIcon}
+                setEditIcon={setEditIcon}
                 categories={categories}
                 onSave={() => handleSave(cat.id)}
                 onCancel={() => { setIsEditing(null); if(cat.id.startsWith("new-")) loadCategories(); }}
-                onEdit={() => { setIsEditing(cat.id); setEditName(cat.name); setEditType(cat.category_type); setEditParentId(cat.parent_id || ""); }}
+                onEdit={() => { setIsEditing(cat.id); setEditName(cat.name); setEditType(cat.category_type); setEditParentId(cat.parent_id || ""); setEditIcon(cat.icon || null); }}
                 onDelete={() => handleDelete(cat.id)}
               />
             ))}
@@ -154,10 +161,12 @@ export default function CategorySettings() {
                 setEditType={setEditType}
                 editParentId={editParentId}
                 setEditParentId={setEditParentId}
+                editIcon={editIcon}
+                setEditIcon={setEditIcon}
                 categories={categories}
                 onSave={() => handleSave(cat.id)}
                 onCancel={() => { setIsEditing(null); if(cat.id.startsWith("new-")) loadCategories(); }}
-                onEdit={() => { setIsEditing(cat.id); setEditName(cat.name); setEditType(cat.category_type); setEditParentId(cat.parent_id || ""); }}
+                onEdit={() => { setIsEditing(cat.id); setEditName(cat.name); setEditType(cat.category_type); setEditParentId(cat.parent_id || ""); setEditIcon(cat.icon || null); }}
                 onDelete={() => handleDelete(cat.id)}
               />
             ))}
@@ -169,12 +178,18 @@ export default function CategorySettings() {
   );
 }
 
-function CategoryRow({ category, isEditing, editName, setEditName, editType, setEditType, editParentId, setEditParentId, categories, onSave, onCancel, onEdit, onDelete }: any) {
+function CategoryRow({ category, isEditing, editName, setEditName, editType, setEditType, editParentId, setEditParentId, editIcon, setEditIcon, categories, onSave, onCancel, onEdit, onDelete }: any) {
+  const [showIconPicker, setShowIconPicker] = useState(false);
+
   if (isEditing) {
     const parentOptions = categories.filter((item: Category) => item.id !== category.id && item.category_type === editType && !item.parent_id);
     return (
       <div className="category-row editing">
-        <input 
+        <button className="icon-button" style={{ border: "1px dashed var(--border)", padding: "4px" }} onClick={() => setShowIconPicker(true)}>
+          <CategoryIcon name={editIcon} size={18} />
+        </button>
+        {showIconPicker && <IconPicker value={editIcon} onChange={setEditIcon} onClose={() => setShowIconPicker(false)} />}
+        <input  
           autoFocus
           className="field"
           value={editName}
@@ -207,7 +222,10 @@ function CategoryRow({ category, isEditing, editName, setEditName, editType, set
 
   return (
     <div className="category-row">
-      <span>{category.name}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        {category.icon ? <CategoryIcon name={category.icon} size={16} /> : <div style={{ width: 16 }} />}
+        <span>{category.name}</span>
+      </div>
       <div className="row-actions">
         <button onClick={onEdit} className="icon-button" aria-label="编辑"><Edit2 size={14} /></button>
         <button onClick={onDelete} className="icon-button danger-icon" aria-label="删除"><Trash2 size={14} /></button>

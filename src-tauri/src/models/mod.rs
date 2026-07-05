@@ -102,6 +102,7 @@ pub struct Category {
     pub name: String,
     pub category_type: TransactionType,
     pub parent_id: Option<String>,
+    pub icon: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
     pub deleted_at: Option<i64>,

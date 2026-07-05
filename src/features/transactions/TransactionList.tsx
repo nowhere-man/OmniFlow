@@ -10,8 +10,15 @@ import { yuan } from "../../lib/format";
 import { Category } from "../../models";
 import { YearMonthPicker } from "../../components/ui/DatePicker";
 import { TransactionEditor } from "./TransactionEditor";
+import { CategoryIcon } from "../../components/ui/CategoryIcon";
 
 const now = () => Math.floor(Date.now() / 1000);
+
+function getTransactionIcon(t: Transaction, categories: Category[]) {
+  const cat = categories.find(c => c.id === t.category_id);
+  const parent = cat?.parent_id ? categories.find(c => c.id === cat.parent_id) : cat;
+  return cat?.icon || parent?.icon;
+}
 
 export default function TransactionList() {
   const { accounts, currentLedgerId, fetchInitialData } = useAppStore();
@@ -160,7 +167,11 @@ export default function TransactionList() {
                     {group.transactions.map((transaction) => (
                       <article key={transaction.id} className="transaction-card" onClick={() => setEditing(transaction)} style={{ cursor: "pointer", gridTemplateColumns: "auto 1fr" }}>
                         <div className={transaction.transaction_type === "expense" ? "tx-symbol expense" : "tx-symbol income"}>
-                          {transaction.transaction_type === "expense" ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
+                          {getTransactionIcon(transaction, categories) ? (
+                            <CategoryIcon name={getTransactionIcon(transaction, categories)} size={16} />
+                          ) : (
+                            transaction.transaction_type === "expense" ? <ArrowUp size={16} /> : <ArrowDown size={16} />
+                          )}
                         </div>
                         <div className="tx-body">
                           <div className="tx-mainline">
@@ -191,7 +202,11 @@ export default function TransactionList() {
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                              <div className={transaction.transaction_type === "expense" ? "tx-symbol expense" : "tx-symbol income"} style={{ width: "32px", height: "32px", flexShrink: 0 }}>
-                               {transaction.transaction_type === "expense" ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                               {getTransactionIcon(transaction, categories) ? (
+                                 <CategoryIcon name={getTransactionIcon(transaction, categories)} size={14} />
+                               ) : (
+                                 transaction.transaction_type === "expense" ? <ArrowUp size={14} /> : <ArrowDown size={14} />
+                               )}
                              </div>
                              <div>
                                <div style={{ fontWeight: 600, fontSize: "15px" }}>{transaction.merchant || transaction.notes || "未命名交易"}</div>
