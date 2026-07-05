@@ -236,3 +236,39 @@ export function ScrollColumn({ options, value, onChange }: { options: string[], 
     </div>
   );
 }
+
+export function YearMonthPicker({ value, onChange, onClose }: { value: Date, onChange: (date: Date) => void, onClose: () => void }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [onClose]);
+
+  const years = Array.from({ length: 21 }, (_, i) => (2020 + i).toString());
+  const months = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, "0"));
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+      transition={{ duration: 0.15 }}
+      ref={containerRef}
+      style={{ position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", background: "var(--background)", border: "1px solid var(--border)", borderRadius: "12px", boxShadow: "0 10px 30px rgba(0,0,0,0.2)", zIndex: 100, display: "flex", width: "200px", height: "240px", overflow: "hidden" }}
+    >
+      <div style={{ flex: 1, borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "8px", textAlign: "center", fontSize: "12px", color: "var(--muted)", fontWeight: 600, background: "color-mix(in srgb, var(--surface) 50%, transparent)" }}>年份</div>
+        <ScrollColumn options={years} value={format(value, "yyyy")} onChange={(y) => onChange(new Date(`${y}-${format(value, "MM")}-01`))} />
+      </div>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "8px", textAlign: "center", fontSize: "12px", color: "var(--muted)", fontWeight: 600, background: "color-mix(in srgb, var(--surface) 50%, transparent)" }}>月份</div>
+        <ScrollColumn options={months} value={format(value, "MM")} onChange={(m) => onChange(new Date(`${format(value, "yyyy")}-${m}-01`))} />
+      </div>
+    </motion.div>
+  );
+}

@@ -19,7 +19,7 @@ import SettingsView from "./features/settings/SettingsView";
 import { applyTheme, useSettingsStore } from "./store/useSettingsStore";
 
 const navItems = [
-  { icon: Home, label: "总览", path: "/" },
+  { icon: Home, label: "首页", path: "/" },
   { icon: ListTree, label: "明细", path: "/transactions" },
   { icon: FileDown, label: "导入", path: "/import" },
   { icon: AreaChart, label: "分析", path: "/charts" },

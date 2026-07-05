@@ -1,51 +1,15 @@
-import { useCallback, useEffect, useMemo, useState, useRef } from "react";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Save, Trash2, X, LayoutGrid, List } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, LayoutGrid, List } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { startOfMonth, endOfMonth, addMonths, subMonths, format } from "date-fns";
 import { zhCN } from "date-fns/locale";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import { useAppStore } from "../../stores/appStore";
 import { Transaction, TransactionAPI } from "../../tauri-adapter/transactions";
 import { yuan } from "../../lib/format";
 import { Category } from "../../models";
-import { Select } from "../../components/ui/Select";
-import { DatePicker, ScrollColumn } from "../../components/ui/DatePicker";
-
-function YearMonthPicker({ value, onChange, onClose }: { value: Date, onChange: (date: Date) => void, onClose: () => void }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        onClose();
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onClose]);
-
-  const years = Array.from({ length: 21 }, (_, i) => (2020 + i).toString());
-  const months = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, "0"));
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0, y: -10, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -10, scale: 0.95 }}
-      transition={{ duration: 0.15 }}
-      ref={containerRef}
-      style={{ position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", background: "var(--background)", border: "1px solid var(--border)", borderRadius: "12px", boxShadow: "0 10px 30px rgba(0,0,0,0.2)", zIndex: 100, display: "flex", width: "200px", height: "240px", overflow: "hidden" }}
-    >
-      <div style={{ flex: 1, borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column" }}>
-        <div style={{ padding: "8px", textAlign: "center", fontSize: "12px", color: "var(--muted)", fontWeight: 600, background: "color-mix(in srgb, var(--surface) 50%, transparent)" }}>年份</div>
-        <ScrollColumn options={years} value={format(value, "yyyy")} onChange={(y) => onChange(new Date(`${y}-${format(value, "MM")}-01`))} />
-      </div>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        <div style={{ padding: "8px", textAlign: "center", fontSize: "12px", color: "var(--muted)", fontWeight: 600, background: "color-mix(in srgb, var(--surface) 50%, transparent)" }}>月份</div>
-        <ScrollColumn options={months} value={format(value, "MM")} onChange={(m) => onChange(new Date(`${format(value, "yyyy")}-${m}-01`))} />
-      </div>
-    </motion.div>
-  );
-}
+import { YearMonthPicker } from "../../components/ui/DatePicker";
+import { TransactionEditor } from "./TransactionEditor";
 
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -60,7 +24,6 @@ export default function TransactionList() {
   
   const [layoutMode, setLayoutMode] = useState<"card" | "list">("card");
   const [editing, setEditing] = useState<Transaction | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
 
   useEffect(() => {
@@ -116,7 +79,6 @@ export default function TransactionList() {
       await TransactionAPI.createTransaction(payload);
     }
     setEditing(null);
-    setConfirmDelete(false);
     await loadMonthData();
   }
 
@@ -124,7 +86,6 @@ export default function TransactionList() {
     if (!editing) return;
     await TransactionAPI.deleteTransaction(editing.id);
     setEditing(null);
-    setConfirmDelete(false);
     await loadMonthData();
   }
 
@@ -259,73 +220,15 @@ export default function TransactionList() {
 
       <AnimatePresence>
         {editing && (
-          <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => { setEditing(null); setConfirmDelete(false); }}>
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.2 }}
-              onClick={(e) => e.stopPropagation()}
-              className="panel"
-              style={{ width: "420px", padding: "24px", display: "flex", flexDirection: "column", gap: "16px", background: "var(--background)", border: "1px solid var(--border)", borderRadius: "12px", boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                <h2 style={{ margin: 0, fontSize: "18px" }}>编辑明细</h2>
-                <button className="icon-button" onClick={() => { setEditing(null); setConfirmDelete(false); }} aria-label="关闭"><X size={18} /></button>
-              </div>
-
-              <div className="segmented">
-                <button className={editing.transaction_type === "expense" ? "active" : ""} onClick={() => setEditing({ ...editing, transaction_type: "expense" })}>支出</button>
-                <button className={editing.transaction_type === "income" ? "active" : ""} onClick={() => setEditing({ ...editing, transaction_type: "income" })}>收入</button>
-              </div>
-              
-              <input className="money-input" type="number" min="0" step="0.01" value={editing.amount} onChange={(event) => setEditing({ ...editing, amount: Number(event.target.value) })} style={{ fontSize: "32px", textAlign: "center", padding: "12px", border: "none", background: "transparent", borderBottom: "2px solid var(--border)", outline: "none", color: "var(--foreground)" }} />
-              
-              <input className="field" value={editing.merchant || ""} placeholder="商户" onChange={(event) => setEditing({ ...editing, merchant: event.target.value })} />
-              <input className="field" value={editing.notes || ""} placeholder="备注" onChange={(event) => setEditing({ ...editing, notes: event.target.value })} />
-              
-              <DatePicker 
-                value={editing.transaction_date}
-                showTime={true}
-                onChange={(val) => {
-                  if (val) setEditing({ ...editing, transaction_date: val });
-                }}
-              />
-              
-              <Select
-                value={editing.account_id}
-                onChange={(val) => setEditing({ ...editing, account_id: val })}
-                options={accounts.map((account) => ({ value: account.id, label: account.name }))}
-              />
-              
-              <Select
-                value={editing.category_id || ""}
-                onChange={(val) => setEditing({ ...editing, category_id: val || null })}
-                options={[
-                  { value: "", label: "未分类" },
-                  ...categoryOptions(categories).map((opt) => ({ value: opt.id, label: opt.label }))
-                ]}
-              />
-
-              <label style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px", cursor: "pointer" }}>
-                <input type="checkbox" checked={editing.is_excluded} onChange={(event) => setEditing({ ...editing, is_excluded: event.target.checked })} />
-                <span>不计入各项收支统计</span>
-              </label>
-              
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
-                 <button className="primary-button" onClick={save} style={{ padding: "12px", fontSize: "15px" }}><Save size={17} />保存更改</button>
-                 
-                 {confirmDelete ? (
-                   <div style={{ display: "flex", gap: "8px" }}>
-                     <button className="primary-button" onClick={remove} style={{ flex: 1, padding: "12px", fontSize: "15px", background: "var(--danger)" }}>确认删除</button>
-                     <button className="ghost-button" onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: "12px", fontSize: "15px", border: "1px solid var(--border)" }}>取消</button>
-                   </div>
-                 ) : (
-                   <button className="ghost-button" onClick={() => setConfirmDelete(true)} style={{ padding: "12px", fontSize: "15px", color: "var(--danger)", border: "1px solid color-mix(in srgb, var(--danger) 20%, transparent)" }}><Trash2 size={17} />删除明细</button>
-                 )}
-              </div>
-            </motion.div>
-          </div>
+          <TransactionEditor
+            transaction={editing}
+            onChange={setEditing}
+            onSave={save}
+            onDelete={remove}
+            onClose={() => setEditing(null)}
+            accounts={accounts}
+            categories={categories}
+          />
         )}
       </AnimatePresence>
     </div>

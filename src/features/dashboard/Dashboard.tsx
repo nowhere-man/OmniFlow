@@ -1,86 +1,96 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import ReactECharts from "echarts-for-react";
-import {
-  ArrowDown,
-  ArrowUp,
-  FileDown,
-  ListTree,
-  Plus,
-  Search,
-  WalletCards,
-} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
+import { format, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isToday } from "date-fns";
+
 import { useAppStore } from "../../stores/appStore";
-import { DashboardSummary, RankedTransaction, StatsAPI, TrendDataPoint } from "../../tauri-adapter/stats";
 import { Transaction, TransactionAPI } from "../../tauri-adapter/transactions";
-import { monthRange, shortDate, yuan } from "../../lib/format";
+import { Category } from "../../models";
+import { YearMonthPicker } from "../../components/ui/DatePicker";
+import { TransactionEditor } from "../transactions/TransactionEditor";
+import { yuan } from "../../lib/format";
 
 const now = () => Math.floor(Date.now() / 1000);
 
 export default function Dashboard() {
-  const { accounts, currentLedgerId, fetchInitialData, fetchTransactionsPage, isLoading, transactions, transactionTotal } = useAppStore();
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [trend, setTrend] = useState<TrendDataPoint[]>([]);
-  const [topExpenses, setTopExpenses] = useState<RankedTransaction[]>([]);
-  const [draft, setDraft] = useState({ amount: "", merchant: "", notes: "", type: "expense" as "expense" | "income" });
-  const [saving, setSaving] = useState(false);
+  const { accounts, currentLedgerId, fetchInitialData } = useAppStore();
+  const [selectedMonth, setSelectedMonth] = useState(() => startOfMonth(new Date()));
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [draft, setDraft] = useState<Transaction | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   useEffect(() => {
     fetchInitialData();
+    invoke<Category[]>("list_categories").then(setCategories).catch(() => setCategories([]));
   }, [fetchInitialData]);
 
-  useEffect(() => {
-    if (currentLedgerId) {
-      fetchTransactionsPage(0, 12);
+  const loadMonthData = useCallback(async () => {
+    if (!currentLedgerId) return;
+    setIsLoading(true);
+    const start = Math.floor(startOfMonth(selectedMonth).getTime() / 1000);
+    const end = Math.floor(endOfMonth(selectedMonth).getTime() / 1000);
+    try {
+      const res = await TransactionAPI.searchTransactions(currentLedgerId, { start_date: start, end_date: end });
+      setTransactions(res.transactions);
+    } finally {
+      setIsLoading(false);
     }
-  }, [currentLedgerId, fetchTransactionsPage]);
+  }, [currentLedgerId, selectedMonth]);
 
   useEffect(() => {
-    async function loadStats() {
-      if (!currentLedgerId) return;
-      const { startTs, endTs } = monthRange();
-      const [nextSummary, nextTrend, nextTop] = await Promise.all([
-        StatsAPI.getDashboardSummary(currentLedgerId, startTs, endTs),
-        StatsAPI.getTrend(currentLedgerId, startTs, endTs, "day"),
-        StatsAPI.getTopTransactions(currentLedgerId, startTs, endTs, "expense", 4),
-      ]);
-      setSummary(nextSummary);
-      setTrend(nextTrend);
-      setTopExpenses(nextTop);
+    loadMonthData();
+  }, [loadMonthData]);
+
+  const handlePrevMonth = () => setSelectedMonth((m) => subMonths(m, 1));
+  const handleNextMonth = () => setSelectedMonth((m) => addMonths(m, 1));
+
+  const calendarDays = useMemo(() => {
+    const monthStart = startOfMonth(selectedMonth);
+    const monthEnd = endOfMonth(selectedMonth);
+    const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
+    const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
+
+    const days = eachDayOfInterval({ start: startDate, end: endDate });
+
+    const dailyNet = new Map<string, number>();
+    for (const t of transactions) {
+      if (t.is_excluded) continue;
+      const dateStr = format(new Date(t.transaction_date * 1000), "yyyy-MM-dd");
+      const current = dailyNet.get(dateStr) || 0;
+      const delta = t.transaction_type === "income" ? t.amount : -t.amount;
+      dailyNet.set(dateStr, current + delta);
     }
-    loadStats();
-  }, [currentLedgerId, transactionTotal]);
 
-  const defaultAccount = accounts.find((account) => account.account_type === "cash") || accounts[0];
-  const recentTransactions = useMemo(() => transactions.slice(0, 7), [transactions]);
-  const netFlow = summary?.net_cash_flow ?? 0;
+    return days.map(day => {
+      const dateStr = format(day, "yyyy-MM-dd");
+      return {
+        date: day,
+        isCurrentMonth: isSameMonth(day, selectedMonth),
+        isToday: isToday(day),
+        netIncome: dailyNet.get(dateStr),
+      };
+    });
+  }, [selectedMonth, transactions]);
 
-  const flowOption = useMemo(() => ({
-    color: ["#10b981", "#ef4444"],
-    tooltip: { trigger: "axis", backgroundColor: "rgba(15,23,42,0.94)", borderWidth: 0, borderRadius: 8, textStyle: { color: "#fff", fontSize: 13 } },
-    grid: { left: 0, right: 0, top: 8, bottom: 0, containLabel: false },
-    xAxis: { type: "category", show: false, data: trend.map((item) => item.date.slice(5)) },
-    yAxis: { type: "value", show: false },
-    series: [
-      { name: "收入", type: "line", smooth: true, showSymbol: false, lineStyle: { width: 3 }, areaStyle: { opacity: 0.16 }, data: trend.map((item) => item.income) },
-      { name: "支出", type: "line", smooth: true, showSymbol: false, lineStyle: { width: 3 }, areaStyle: { opacity: 0.12 }, data: trend.map((item) => item.expense) },
-    ],
-  }), [trend]);
+  const weekDays = ["一", "二", "三", "四", "五", "六", "日"];
 
-  async function quickAdd() {
-    if (!currentLedgerId || !defaultAccount || Number(draft.amount) <= 0) return;
-    setSaving(true);
+  function openQuickEntry() {
+    if (!currentLedgerId || accounts.length === 0) return;
+    const defaultAccount = accounts.find((a) => a.account_type === "cash") || accounts[0];
     const timestamp = now();
-    const transaction: Transaction = {
+    setDraft({
       id: crypto.randomUUID(),
       ledger_id: currentLedgerId,
       account_id: defaultAccount.id,
       category_id: null,
       transaction_date: timestamp,
-      amount: Number(draft.amount),
-      transaction_type: draft.type,
-      merchant: draft.merchant || null,
-      notes: draft.notes || null,
+      amount: 0,
+      transaction_type: "expense",
+      merchant: null,
+      notes: null,
       tags: [],
       is_excluded: false,
       external_source: "manual",
@@ -88,120 +98,104 @@ export default function Dashboard() {
       created_at: timestamp,
       updated_at: timestamp,
       deleted_at: null,
-    };
-    await TransactionAPI.createTransaction(transaction);
-    setDraft({ amount: "", merchant: "", notes: "", type: draft.type });
-    await fetchTransactionsPage(0, 12);
-    setSaving(false);
+    });
   }
 
-  if (isLoading) {
-    return <div className="screen-state">正在载入</div>;
+  async function saveDraft() {
+    if (!draft) return;
+    await TransactionAPI.createTransaction(draft);
+    setDraft(null);
+    await loadMonthData();
   }
 
   return (
-    <div className="home-workbench">
-      <section className="today-strip">
-        <div className="balance-stage">
-          <div className="stage-kicker"><WalletCards size={16} /> 总览</div>
-          <div className="balance-row">
-            <div>
-              <span>账户余额</span>
-              <strong>{yuan(summary?.net_assets ?? 0)}</strong>
+    <div className="money-flow-page" style={{ padding: "24px", maxWidth: "1000px", margin: "0 auto", height: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "32px", position: "relative" }}>
+        <div style={{ width: "80px" }}></div>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px", position: "relative" }}>
+          <button className="icon-button" onClick={handlePrevMonth}><ChevronLeft size={24} /></button>
+          <div style={{ position: "relative" }}>
+            <div 
+              style={{ cursor: "pointer", padding: "8px 16px", borderRadius: "8px", background: showMonthPicker ? "var(--surface)" : "color-mix(in srgb, var(--surface) 50%, transparent)", transition: "background 0.2s" }} 
+              onClick={() => setShowMonthPicker(!showMonthPicker)}
+            >
+              <h2 style={{ margin: 0, fontSize: "22px", fontWeight: 600 }}>{format(selectedMonth, "yyyy年 MM月")}</h2>
             </div>
-            <div className={netFlow >= 0 ? "flow-positive" : "flow-negative"}>
-              <span>本月净流动</span>
-              <strong>{yuan(netFlow)}</strong>
-            </div>
+            <AnimatePresence>
+              {showMonthPicker && (
+                <YearMonthPicker 
+                  value={selectedMonth} 
+                  onChange={setSelectedMonth} 
+                  onClose={() => setShowMonthPicker(false)} 
+                />
+              )}
+            </AnimatePresence>
           </div>
-          <div className="stage-chart">
-            <ReactECharts option={flowOption} style={{ height: 112 }} />
-          </div>
+          <button className="icon-button" onClick={handleNextMonth}><ChevronRight size={24} /></button>
         </div>
+        <div style={{ width: "80px" }}></div>
+      </header>
 
-        <div className="quick-entry-panel">
-          <div className="panel-head">
-            <h2>快速补记</h2>
-            <div className="segmented">
-              <button className={draft.type === "expense" ? "active" : ""} onClick={() => setDraft({ ...draft, type: "expense" })}><ArrowUp size={15} />支出</button>
-              <button className={draft.type === "income" ? "active" : ""} onClick={() => setDraft({ ...draft, type: "income" })}><ArrowDown size={15} />收入</button>
-            </div>
-          </div>
-          <div className="quick-entry-grid">
-            <input className="money-input" inputMode="decimal" placeholder="0.00" value={draft.amount} onChange={(event) => setDraft({ ...draft, amount: event.target.value })} />
-            <input className="field" placeholder="商户" value={draft.merchant} onChange={(event) => setDraft({ ...draft, merchant: event.target.value })} />
-            <input className="field" placeholder="备注" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
-            <button className="primary-button" onClick={quickAdd} disabled={saving || !draft.amount}><Plus size={17} />记一笔</button>
-          </div>
+      <div className="panel" style={{ flex: 1, padding: "24px", display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: "16px" }}>
+          {weekDays.map(d => (
+            <div key={d} style={{ textAlign: "center", fontSize: "14px", fontWeight: 600, color: "var(--muted)" }}>周{d}</div>
+          ))}
         </div>
-      </section>
-
-      <section className="action-lane">
-        <ActionCard to="/import" icon={<FileDown size={20} />} title="导入账单" value="预览后入账" />
-        <ActionCard to="/transactions" icon={<ListTree size={20} />} title="钱流明细" value={`${transactionTotal} 笔`} />
-        <ActionCard to="/search" icon={<Search size={20} />} title="找一笔账" value="组合筛选" />
-      </section>
-
-      <section className="home-grid">
-        <div className="flow-panel">
-          <div className="panel-head">
-            <h2>最近钱流</h2>
-            <Link to="/transactions">全部</Link>
-          </div>
-          <div className="flow-list">
-            {recentTransactions.length === 0 ? (
-              <div className="empty-line">暂无交易</div>
-            ) : recentTransactions.map((transaction) => (
-              <TransactionRow key={transaction.id} transaction={transaction} />
-            ))}
-          </div>
-        </div>
-
-        <div className="insight-panel">
-          <div className="panel-head">
-            <h2>本月重点</h2>
-            <Link to="/charts">分析</Link>
-          </div>
-          <div className="focus-list">
-            {topExpenses.length === 0 ? (
-              <div className="empty-line">暂无支出排行</div>
-            ) : topExpenses.map((item, index) => (
-              <div className="focus-item" key={item.id}>
-                <span>{index + 1}</span>
-                <div>
-                  <strong>{item.merchant || item.notes || "未命名支出"}</strong>
-                  <small>{shortDate(item.transaction_date)} · {item.category_name || "未分类"}</small>
+        {isLoading ? (
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)" }}>正在载入日历...</div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "12px", flex: 1 }}>
+            {calendarDays.map((item, idx) => (
+              <div 
+                key={idx} 
+                style={{ 
+                  background: item.isCurrentMonth ? "color-mix(in srgb, var(--surface) 30%, transparent)" : "transparent",
+                  borderRadius: "12px", 
+                  padding: "12px",
+                  display: "flex", 
+                  flexDirection: "column", 
+                  alignItems: "center",
+                  opacity: item.isCurrentMonth ? 1 : 0.4,
+                  border: item.isToday ? "1.5px solid var(--primary)" : "1.5px solid color-mix(in srgb, var(--border) 40%, transparent)"
+                }}
+              >
+                <div style={{ fontSize: "18px", fontWeight: item.isToday ? 700 : 500, color: item.isToday ? "var(--primary)" : "var(--foreground)" }}>
+                  {format(item.date, "d")}
                 </div>
-                <b>{yuan(item.amount)}</b>
+                <div style={{ marginTop: "auto", fontSize: "13px", fontWeight: 600, height: "20px", display: "flex", alignItems: "flex-end" }}>
+                  {item.netIncome !== undefined && item.netIncome !== 0 && (
+                    <span style={{ color: item.netIncome > 0 ? "var(--success)" : "var(--danger)" }}>
+                      {item.netIncome > 0 ? "+" : "-"}{yuan(Math.abs(item.netIncome))}
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function ActionCard({ to, icon, title, value }: { to: string; icon: React.ReactNode; title: string; value: string }) {
-  return (
-    <Link to={to} className="action-card">
-      <span>{icon}</span>
-      <strong>{title}</strong>
-      <small>{value}</small>
-    </Link>
-  );
-}
-
-function TransactionRow({ transaction }: { transaction: Transaction }) {
-  const isExpense = transaction.transaction_type === "expense";
-  return (
-    <div className="flow-row">
-      <span className={isExpense ? "flow-dot expense" : "flow-dot income"}>{isExpense ? <ArrowUp size={14} /> : <ArrowDown size={14} />}</span>
-      <div className="flow-main">
-        <strong>{transaction.merchant || transaction.notes || "未命名交易"}</strong>
-        <small>{shortDate(transaction.transaction_date)}{transaction.is_excluded ? " · 不计收支" : ""}</small>
+        )}
       </div>
-      <b className={isExpense ? "amount-expense" : "amount-income"}>{isExpense ? "-" : "+"}{yuan(transaction.amount)}</b>
+
+      <button 
+        className="primary-button hover-transform" 
+        onClick={openQuickEntry}
+        style={{ position: "fixed", bottom: "40px", right: "40px", width: "64px", height: "64px", borderRadius: "32px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 24px rgba(0,0,0,0.3)", padding: 0 }}
+      >
+        <Plus size={28} />
+      </button>
+
+      <AnimatePresence>
+        {draft && (
+          <TransactionEditor
+            transaction={draft}
+            onChange={setDraft}
+            onSave={saveDraft}
+            onClose={() => setDraft(null)}
+            accounts={accounts}
+            categories={categories}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
