@@ -1,34 +1,73 @@
-import { useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { Search, Filter, ChevronUp } from "lucide-react";
 import { useAppStore } from "../../stores/appStore";
 import { SearchResult, TransactionAPI, TransactionFilter } from "../../tauri-adapter/transactions";
 import { shortDate, yuan } from "../../lib/format";
 import { Select } from "../../components/ui/Select";
+import { DatePicker } from "../../components/ui/DatePicker";
+import { invoke } from "@tauri-apps/api/core";
+import { Category } from "../../models";
 
 export default function SearchView() {
-  const { currentLedgerId, accounts, fetchInitialData } = useAppStore();
+  const { currentLedgerId, ledgers, accounts, fetchInitialData } = useAppStore();
   const [filter, setFilter] = useState<TransactionFilter>({});
   const [result, setResult] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [transactionType, setTransactionType] = useState<"all" | "expense" | "income">("all");
+  const [searchLedgerId, setSearchLedgerId] = useState<string>("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [minAmountStr, setMinAmountStr] = useState("");
+  const [maxAmountStr, setMaxAmountStr] = useState("");
 
   useEffect(() => {
     fetchInitialData();
+    invoke<Category[]>("list_categories").then(setCategories).catch(() => setCategories([]));
   }, [fetchInitialData]);
 
+  useEffect(() => {
+    if (currentLedgerId && !searchLedgerId) {
+      setSearchLedgerId(currentLedgerId);
+    }
+  }, [currentLedgerId, searchLedgerId]);
+
+  function resetFilters() {
+    setFilter({});
+    setSearchLedgerId(currentLedgerId || "");
+    setTransactionType("all");
+    setMinAmountStr("");
+    setMaxAmountStr("");
+    setResult(null);
+  }
+
   async function runSearch(nextFilter = filter) {
-    if (!currentLedgerId) return;
+    if (!searchLedgerId) return;
     setLoading(true);
     try {
-      setResult(await TransactionAPI.searchTransactions(currentLedgerId, nextFilter));
+      const data = await TransactionAPI.searchTransactions(searchLedgerId, nextFilter);
+      
+      // Frontend-side filtering for transaction_type since the backend filter struct lacks it
+      if (transactionType !== "all") {
+        data.transactions = data.transactions.filter((t) => t.transaction_type === transactionType);
+        data.total_income = data.transactions.filter((t) => t.transaction_type === "income").reduce((sum, t) => sum + t.amount, 0);
+        data.total_expense = data.transactions.filter((t) => t.transaction_type === "expense").reduce((sum, t) => sum + t.amount, 0);
+      }
+      
+      setResult(data);
     } finally {
       setLoading(false);
     }
   }
 
   function patch(patch: TransactionFilter) {
-    const next = { ...filter, ...patch };
-    setFilter(next);
+    setFilter((prev) => ({ ...prev, ...patch }));
   }
+
+  const primaryCategories = useMemo(() => categories.filter((c) => !c.parent_id), [categories]);
+  const secondaryCategories = useMemo(() => {
+    if (!filter.parent_category_id) return categories.filter((c) => c.parent_id);
+    return categories.filter((c) => c.parent_id === filter.parent_category_id);
+  }, [categories, filter.parent_category_id]);
 
   return (
     <div className="page-stack">
@@ -37,38 +76,162 @@ export default function SearchView() {
           <div className="eyebrow">搜索</div>
           <h1 className="page-title">搜索交易</h1>
         </div>
-        <button className="primary-button" onClick={() => runSearch()} disabled={loading}><Search size={17} />搜索</button>
       </section>
 
-      <section className="panel panel-pad">
-        <div className="toolbar">
-          <input className="field" placeholder="商户或备注" value={filter.keyword || ""} onChange={(event) => patch({ keyword: event.target.value || null })} />
-          <Select
-            value={filter.account_id || ""}
-            onChange={(val) => patch({ account_id: val || null })}
-            options={[
-              { value: "", label: "全部账户" },
-              ...accounts.map((account) => ({ value: account.id, label: account.name })),
-            ]}
-          />
-          <input className="field field-xs" type="number" placeholder="最小金额" onChange={(event) => patch({ min_amount: event.target.value ? Number(event.target.value) : null })} />
-          <input className="field field-xs" type="number" placeholder="最大金额" onChange={(event) => patch({ max_amount: event.target.value ? Number(event.target.value) : null })} />
-          <input className="field" placeholder="标签" value={filter.tag || ""} onChange={(event) => patch({ tag: event.target.value || null })} />
+      <section className="panel panel-pad" style={{ overflow: "visible" }}>
+        {/* Main Search Bar */}
+        <div style={{ display: "flex", gap: "12px", alignItems: "stretch" }}>
+          <div style={{ position: "relative", flex: 1 }}>
+            <Search size={18} style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
+            <input 
+              className="field" 
+              style={{ paddingLeft: "42px", height: "44px", fontSize: "15px", fontWeight: 500 }}
+              placeholder="搜索商户、备注或关键字..." 
+              value={filter.keyword || ""} 
+              onChange={(event) => patch({ keyword: event.target.value || null })} 
+              onKeyDown={(e) => e.key === "Enter" && runSearch()}
+            />
+          </div>
+          <button className="ghost-button" onClick={() => setShowAdvanced(!showAdvanced)} style={{ width: "44px", justifyContent: "center" }}>
+            {showAdvanced ? <ChevronUp size={20} /> : <Filter size={20} />}
+          </button>
+          <button className="primary-button" onClick={() => runSearch()} disabled={loading} style={{ height: "44px", padding: "0 24px" }}>
+            搜索
+          </button>
         </div>
+
+        {/* Advanced Search Grid */}
+        {showAdvanced && (
+          <div className="advanced-search-rows" style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "16px", paddingTop: "16px", borderTop: "1px dashed color-mix(in srgb, var(--border) 60%, transparent)" }}>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-start" }}>
+              <div style={{ width: "240px" }}>
+                <Select
+                  value={searchLedgerId}
+                  onChange={(val) => setSearchLedgerId(val)}
+                  options={ledgers.map((ledger) => ({ value: ledger.id, label: ledger.name }))}
+                />
+              </div>
+              <div style={{ width: "240px" }}>
+                <Select
+                  value={filter.account_id || ""}
+                  onChange={(val) => patch({ account_id: val || null })}
+                  options={[
+                    { value: "", label: "全部账户" },
+                    ...accounts.map((account) => ({ value: account.id, label: account.name })),
+                  ]}
+                />
+              </div>
+            </div>
+            
+            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-start" }}>
+              <div style={{ width: "160px" }}>
+                <Select
+                  value={transactionType}
+                  onChange={(val) => setTransactionType(val as "all" | "expense" | "income")}
+                  options={[
+                    { value: "all", label: "全部收支" },
+                    { value: "expense", label: "仅支出" },
+                    { value: "income", label: "仅收入" },
+                  ]}
+                />
+              </div>
+              <div style={{ width: "180px" }}>
+                <Select
+                  value={filter.parent_category_id || ""}
+                  onChange={(val) => patch({ parent_category_id: val || null, category_id: null })}
+                  options={[
+                    { value: "", label: "所有一级分类" },
+                    ...primaryCategories.map((c) => ({ value: c.id, label: c.name })),
+                  ]}
+                />
+              </div>
+              <div style={{ width: "180px" }}>
+                <Select
+                  value={filter.category_id || ""}
+                  onChange={(val) => patch({ category_id: val || null })}
+                  options={[
+                    { value: "", label: "所有二级分类" },
+                    ...secondaryCategories.map((c) => ({ value: c.id, label: c.name })),
+                  ]}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-start" }}>
+              <div style={{ width: "200px" }}>
+                <DatePicker
+                  value={filter.start_date || null}
+                  onChange={(val) => patch({ start_date: val })}
+                  placeholder="开始日期"
+                />
+              </div>
+              <div style={{ width: "200px" }}>
+                <DatePicker
+                  value={filter.end_date || null}
+                  onChange={(val) => patch({ end_date: val })}
+                  placeholder="结束日期"
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-start" }}>
+              <div style={{ width: "150px" }}>
+                <input 
+                  className="field no-spin" 
+                  type="text" 
+                  placeholder="最小金额" 
+                  value={minAmountStr}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^\d.]/g, '');
+                    setMinAmountStr(val);
+                    patch({ min_amount: val ? Number(val) : null });
+                  }} 
+                />
+              </div>
+              <div style={{ width: "150px" }}>
+                <input 
+                  className="field no-spin" 
+                  type="text" 
+                  placeholder="最大金额" 
+                  value={maxAmountStr}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^\d.]/g, '');
+                    setMaxAmountStr(val);
+                    patch({ max_amount: val ? Number(val) : null });
+                  }} 
+                />
+              </div>
+              <div style={{ width: "220px" }}>
+                <input 
+                  className="field" 
+                  placeholder="指定标签 (支持模糊)" 
+                  value={filter.tag || ""} 
+                  onChange={(event) => patch({ tag: event.target.value || null })} 
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-start", marginTop: "4px" }}>
+              <button className="ghost-button" onClick={resetFilters}>
+                重置选项
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {result && (
         <section className="metric-grid">
           <div className="metric-tile"><div className="metric-label">结果数</div><strong>{result.transactions.length}</strong></div>
-          <div className="metric-tile"><div className="metric-label">收入汇总</div><strong>{yuan(result.total_income)}</strong></div>
-          <div className="metric-tile"><div className="metric-label">支出汇总</div><strong>{yuan(result.total_expense)}</strong></div>
+          <div className="metric-tile"><div className="metric-label">收入汇总</div><strong className="amount-income">{yuan(result.total_income)}</strong></div>
+          <div className="metric-tile"><div className="metric-label">支出汇总</div><strong className="amount-expense">{yuan(result.total_expense)}</strong></div>
           <div className="metric-tile"><div className="metric-label">净额</div><strong>{yuan(result.total_income - result.total_expense)}</strong></div>
         </section>
       )}
 
       <section className="panel table-scroll">
         {!result ? (
-          <div className="panel-pad empty-copy">组合条件后点击搜索，结果和汇总都由后端计算。</div>
+          <div className="panel-pad empty-copy">组合条件后点击搜索，寻找你需要的交易记录。</div>
         ) : (
           <table className="data-table">
             <thead>
