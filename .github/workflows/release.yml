@@ -60,3 +60,83 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+  publish-android:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: install frontend dependencies
+        run: pnpm install
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Setup NDK
+        run: |
+          echo "NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+
+      - name: Build Android APK
+        run: pnpm tauri android build --apk
+
+      - name: Sign Android APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo $KEYSTORE_BASE64 | base64 --decode > release.jks
+          # Find build-tools path
+          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+          APKSIGNER=$BUILD_TOOLS_DIR/apksigner
+          ZIPALIGN=$BUILD_TOOLS_DIR/zipalign
+          
+          # Find the built APK
+          for apk in $(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk"); do
+            # Only sign unsigned apks
+            if [[ "$apk" == *"-unsigned.apk" ]]; then
+              ALIGNED_APK="${apk/-unsigned.apk/-aligned.apk}"
+              SIGNED_APK="${apk/-unsigned.apk/.apk}"
+              
+              # Zipalign
+              $ZIPALIGN -v -p 4 "$apk" "$ALIGNED_APK"
+              
+              # Sign
+              $APKSIGNER sign --ks release.jks --ks-pass pass:$KEYSTORE_PASSWORD --ks-key-alias "$KEY_ALIAS" --key-pass pass:$KEY_PASSWORD --out "$SIGNED_APK" "$ALIGNED_APK"
+              
+              # Verify
+              $APKSIGNER verify "$SIGNED_APK"
+              
+              echo "SIGNED_APK_PATH=$SIGNED_APK" >> $GITHUB_ENV
+            fi
+          done
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
