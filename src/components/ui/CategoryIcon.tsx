@@ -1,4 +1,4 @@
-import * as Icons from "lucide-react";
+import { Icon } from "@iconify/react";
 import { FC } from "react";
 
 export interface CategoryIconProps {
@@ -8,12 +8,13 @@ export interface CategoryIconProps {
 }
 
 export const CategoryIcon: FC<CategoryIconProps> = ({ name, size = 18, className = "" }) => {
-  if (!name) return <Icons.CircleDashed size={size} className={className} />;
+  if (!name) return <Icon icon="fluent-emoji-flat:question-mark" width={size} height={size} className={className} />;
   
-  // @ts-expect-error dynamic access
-  const IconComponent = Icons[name] as FC<{ size?: number; className?: string }> | undefined;
+  // Backward compatibility with previous lucide icons, map them to fluent-emoji if they don't contain a colon
+  let iconName = name;
+  if (!iconName.includes(":")) {
+    iconName = "fluent-emoji-flat:" + iconName.toLowerCase().replace(/([a-z])([A-Z])/g, '$1-$2'); // camelCase to kebab-case
+  }
   
-  if (!IconComponent) return <Icons.CircleDashed size={size} className={className} />;
-  
-  return <IconComponent size={size} className={className} />;
+  return <Icon icon={iconName} width={size} height={size} className={className} />;
 };
