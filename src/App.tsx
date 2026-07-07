@@ -6,12 +6,10 @@ import {
   Banknote,
   FileDown,
   Home,
-  ListTree,
   Search,
   Settings,
 } from "lucide-react";
 import Dashboard from "./features/dashboard/Dashboard";
-import TransactionList from "./features/transactions/TransactionList";
 import ImportView from "./features/import/ImportView";
 import ChartsView from "./features/charts/ChartsView";
 import SearchView from "./features/search/SearchView";
@@ -20,10 +18,9 @@ import { applyTheme, useSettingsStore } from "./store/useSettingsStore";
 
 const navItems = [
   { icon: Home, label: "首页", path: "/" },
-  { icon: ListTree, label: "明细", path: "/transactions" },
-  { icon: FileDown, label: "导入", path: "/import" },
   { icon: AreaChart, label: "分析", path: "/charts" },
   { icon: Search, label: "搜索", path: "/search" },
+  { icon: FileDown, label: "导入", path: "/import" },
   { icon: Settings, label: "设置", path: "/settings" },
 ];
 
@@ -84,7 +81,6 @@ export default function App() {
           <main className="workspace-main">
             <Routes>
               <Route path="/" element={<Dashboard />} />
-              <Route path="/transactions" element={<TransactionList />} />
               <Route path="/import" element={<ImportView />} />
               <Route path="/charts" element={<ChartsView />} />
               <Route path="/search" element={<SearchView />} />
