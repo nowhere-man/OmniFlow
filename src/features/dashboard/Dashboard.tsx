@@ -214,8 +214,40 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <div className="home-grid">
-        {/* Main Column: Timeline */}
+      <div className="home-stack" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {/* Top Block: Calendar */}
+        <div className="calendar-panel">
+          <div className="calendar-weekdays">
+            {weekDays.map(d => (
+              <div key={d} className="calendar-weekday">周{d}</div>
+            ))}
+          </div>
+          {isLoading ? (
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", minHeight: "200px" }}>正在载入日历...</div>
+          ) : (
+            <div className="calendar-grid">
+              {calendarDays.map((item, idx) => (
+                <div 
+                  key={idx} 
+                  className={`calendar-day-card ${item.isCurrentMonth ? "current-month" : "other-month"} ${item.isToday ? "today" : ""}`}
+                >
+                  <div className="calendar-day-num">
+                    {format(item.date, "d")}
+                  </div>
+                  <div className="calendar-day-net-container">
+                    {item.netIncome !== undefined && item.netIncome !== 0 && (
+                      <div className={`calendar-day-net ${item.netIncome > 0 ? "positive" : "negative"}`}>
+                        {item.netIncome > 0 ? "+" : "-"}{yuan(Math.abs(item.netIncome))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Bottom Block: Timeline */}
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", minHeight: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px" }}>
             <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "var(--foreground)" }}>本月收支明细</h3>
@@ -307,38 +339,6 @@ export default function Dashboard() {
               </div>
             )}
           </section>
-        </div>
-
-        {/* Side Column: Calendar */}
-        <div className="calendar-panel" style={{ alignSelf: "start" }}>
-          <div className="calendar-weekdays">
-            {weekDays.map(d => (
-              <div key={d} className="calendar-weekday">周{d}</div>
-            ))}
-          </div>
-          {isLoading ? (
-            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", minHeight: "200px" }}>正在载入日历...</div>
-          ) : (
-            <div className="calendar-grid">
-              {calendarDays.map((item, idx) => (
-                <div 
-                  key={idx} 
-                  className={`calendar-day-card ${item.isCurrentMonth ? "current-month" : "other-month"} ${item.isToday ? "today" : ""}`}
-                >
-                  <div className="calendar-day-num">
-                    {format(item.date, "d")}
-                  </div>
-                  <div className="calendar-day-net-container" style={{ marginTop: "auto" }}>
-                    {item.netIncome !== undefined && item.netIncome !== 0 && (
-                      <div className={`calendar-day-net ${item.netIncome > 0 ? "positive" : "negative"}`}>
-                        {item.netIncome > 0 ? "+" : "-"}{yuan(Math.abs(item.netIncome))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 

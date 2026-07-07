@@ -2043,10 +2043,10 @@ input[type="number"] {
 
 .calendar-day-card {
   border-radius: 12px;
-  padding: 12px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   transition: all var(--motion-fast) var(--ease);
   border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
@@ -2054,14 +2054,14 @@ input[type="number"] {
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  min-height: 90px;
+  min-height: 96px;
 }
 
 .calendar-day-card:hover {
   background: var(--surface);
   border-color: var(--primary);
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.05);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
   z-index: 10;
 }
 
@@ -2090,8 +2090,8 @@ input[type="number"] {
 }
 
 .calendar-day-num {
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 600;
   color: var(--foreground);
   transition: color var(--motion-fast) var(--ease);
 }
@@ -2101,23 +2101,31 @@ input[type="number"] {
   color: var(--primary);
 }
 
-.calendar-day-net {
+.calendar-day-net-container {
+  align-self: flex-end;
   margin-top: auto;
+}
+
+.calendar-day-net {
   font-size: 11px;
-  font-weight: 600;
-  height: 18px;
-  display: flex;
-  align-items: flex-end;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: -0.01em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .calendar-day-net.positive {
   color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
 }
 
 .calendar-day-net.negative {
   color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
 .quick-add-fab {
