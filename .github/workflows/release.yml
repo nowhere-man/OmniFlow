@@ -1,132 +1,218 @@
-name: "Release"
+# OmniFlow Release Workflow
+#
+# 触发方式：
+#   - 推送 vX.Y.Z 格式的 tag（正式发布）
+#   - 手动触发 workflow_dispatch（测试构建）
+#
+# 产物：
+#   - Android: 签名 APK（使用 GitHub Secrets 中的 keystore）
+#   - iOS:     未签名 IPA（本地自签）
+#   - macOS:   未签名 DMG（本地自签）
+#
+# ── Android Secrets 配置（已在 GitHub 仓库 Settings > Secrets 配置）──
+#   RELEASE_KEYSTORE   : base64 编码的 .jks / .keystore 文件
+#   STORE_PASSWORD     : keystore 密码
+#   KEY_ALIAS          : key alias
+#   KEY_PASSWORD       : key 密码
+#
+# ── 使用前需要修改的占位符 ──────────────────────────────────────────
+#   appleApp/OmniFlow.xcodeproj  → 实际 Xcode 工程路径
+#   OmniFlow-iOS                 → 实际 iOS scheme 名称
+#   OmniFlow-macOS               → 实际 macOS scheme 名称
+#   :androidApp:assembleRelease  → 实际 Android Gradle task
+#   :shared:assembleXCFramework  → 实际 KMP shared module Gradle task
+
+name: Release
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      build_note:
+        description: '构建备注（可选）'
+        required: false
+        default: 'Manual build'
+
+# 并发控制：同一 ref 只允许一个 Release 流程运行
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  publish-tauri:
-    permissions:
-      contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: 'macos-latest'
-            args: '--target x86_64-apple-darwin'
-          - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
 
-    runs-on: ${{ matrix.platform }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-
-      - name: install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-
-      - name: install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
-
-      - name: install frontend dependencies
-        run: pnpm install
-
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: app-v__VERSION__ # Tauri 官方 Action 会自动替换 __VERSION__
-          releaseName: 'OmniFlow v__VERSION__'
-          releaseBody: 'OmniFlow 全新版本发布！请在下方 Assets 中下载对应你操作系统的安装包。'
-          releaseDraft: true
-          prerelease: false
-          args: ${{ matrix.args }}
-
-  publish-android:
+  # ────────────────────────────────────────────────────────────────
+  # Job 1: Android — 在 Linux runner 上构建，成本低
+  # ────────────────────────────────────────────────────────────────
+  android:
+    name: Android APK
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-
-      - name: install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
-
-      - name: install frontend dependencies
-        run: pnpm install
-
-      - name: Setup Java
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
-          distribution: "temurin"
-          java-version: "17"
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
 
-      - name: install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.RELEASE_KEYSTORE }}" \
+            | base64 --decode > $GITHUB_WORKSPACE/release.keystore
+
+      - name: Build signed release APK
+        run: |
+          ./gradlew :androidApp:assembleRelease \
+            -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/release.keystore \
+            -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+
+      - name: Rename APK with version
+        run: |
+          VERSION="${{ github.ref_name }}"
+          APK=$(find androidApp/build/outputs/apk/release -name "*.apk" | head -1)
+          mv "$APK" "$(dirname $APK)/OmniFlow-${VERSION}.apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+          name: OmniFlow-Android
+          path: androidApp/build/outputs/apk/release/OmniFlow-*.apk
+          retention-days: 30
 
-      - name: Setup NDK
+  # ────────────────────────────────────────────────────────────────
+  # Job 2: Apple — iOS + macOS 在同一个 macOS runner 完成
+  #         KMP XCFramework 只需编译一次，两个平台共用
+  # ────────────────────────────────────────────────────────────────
+  apple:
+    name: Apple (iOS + macOS)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17 (Gradle / KMP)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      # KMP K/N 编译只能在 macOS 上运行
+      - name: Build KMP XCFramework
+        run: ./gradlew :shared:assembleXCFramework
+
+      # ── iOS ──────────────────────────────────────────────────────
+
+      - name: Build iOS (unsigned)
         run: |
-          echo "NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+          xcodebuild build \
+            -project appleApp/OmniFlow.xcodeproj \
+            -scheme OmniFlow-iOS \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
 
-      - name: Build Android APK
-        run: pnpm tauri android build --apk
-
-      - name: Sign Android APK
-        env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Package iOS to IPA
         run: |
-          echo $KEYSTORE_BASE64 | base64 --decode > release.jks
-          # Find build-tools path
-          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
-          APKSIGNER=$BUILD_TOOLS_DIR/apksigner
-          ZIPALIGN=$BUILD_TOOLS_DIR/zipalign
+          VERSION="${{ github.ref_name }}"
+          APP=$(find build/DerivedData/Build/Products/Release-iphoneos \
+                  -maxdepth 1 -name "*.app" | head -1)
+          if [ -z "$APP" ]; then
+            echo "ERROR: iOS .app not found"; exit 1
+          fi
+          mkdir -p build/ios-payload/Payload
+          cp -r "$APP" build/ios-payload/Payload/
+          cd build/ios-payload
+          zip -r "../../OmniFlow-iOS-${VERSION}.ipa" Payload/
 
-          # Find the built APK
-          for apk in $(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk"); do
-            # Only sign unsigned apks
-            if [[ "$apk" == *"-unsigned.apk" ]]; then
-              ALIGNED_APK="${apk/-unsigned.apk/-aligned.apk}"
-              SIGNED_APK="${apk/-unsigned.apk/.apk}"
+      - name: Upload iOS IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniFlow-iOS
+          path: OmniFlow-iOS-*.ipa
+          retention-days: 30
 
-              # Zipalign
-              $ZIPALIGN -v -p 4 "$apk" "$ALIGNED_APK"
+      # ── macOS ────────────────────────────────────────────────────
 
-              # Sign
-              $APKSIGNER sign --ks release.jks --ks-pass pass:$KEYSTORE_PASSWORD --ks-key-alias "$KEY_ALIAS" --key-pass pass:$KEY_PASSWORD --out "$SIGNED_APK" "$ALIGNED_APK"
+      - name: Build macOS (unsigned)
+        run: |
+          xcodebuild build \
+            -project appleApp/OmniFlow.xcodeproj \
+            -scheme OmniFlow-macOS \
+            -sdk macosx \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
 
-              # Verify
-              $APKSIGNER verify "$SIGNED_APK"
+      - name: Package macOS to DMG
+        run: |
+          VERSION="${{ github.ref_name }}"
+          APP=$(find build/DerivedData/Build/Products/Release \
+                  -maxdepth 1 -name "*.app" | head -1)
+          if [ -z "$APP" ]; then
+            echo "ERROR: macOS .app not found"; exit 1
+          fi
+          # hdiutil 系统内置，无需额外安装
+          hdiutil create \
+            -volname "OmniFlow" \
+            -srcfolder "$APP" \
+            -ov \
+            -format UDZO \
+            "OmniFlow-macOS-${VERSION}.dmg"
 
-              echo "SIGNED_APK_PATH=$SIGNED_APK" >> $GITHUB_ENV
-            fi
-          done
+      - name: Upload macOS DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OmniFlow-macOS
+          path: OmniFlow-macOS-*.dmg
+          retention-days: 30
 
-      - name: Upload Release Asset
+  # ────────────────────────────────────────────────────────────────
+  # Job 3: 创建 GitHub Release（仅 tag 触发时）
+  #         等待 android 和 apple 两个 job 都完成后执行
+  # ────────────────────────────────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [android, apple]
+    if: startsWith(github.ref, 'refs/tags/')
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          name: "OmniFlow ${{ github.ref_name }}"
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          files: |
+            dist/**/*.apk
+            dist/**/*.ipa
+            dist/**/*.dmg
