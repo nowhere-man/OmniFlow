@@ -7,3 +7,8 @@ logs
 .DS_Store
 
 examples/
+# AI planning files
+planning/
+task_plan.md
+findings.md
+progress.md
