@@ -13,14 +13,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest' # 用于编译 macOS x86_64 版本
+          - platform: 'macos-latest'
             args: '--target x86_64-apple-darwin'
-          - platform: 'macos-latest' # 用于编译 macOS ARM64 (M1/M2/M3) 版本
+          - platform: 'macos-latest'
             args: '--target aarch64-apple-darwin'
-          - platform: 'ubuntu-22.04' # 用于编译 Linux AppImage 和 deb
-            args: ''
-          - platform: 'windows-latest' # 用于编译 Windows exe 和 msi
-            args: ''
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -35,12 +31,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-
-      - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: install pnpm
         uses: pnpm/action-setup@v3
@@ -114,23 +104,23 @@ jobs:
           BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
           APKSIGNER=$BUILD_TOOLS_DIR/apksigner
           ZIPALIGN=$BUILD_TOOLS_DIR/zipalign
-          
+
           # Find the built APK
           for apk in $(find src-tauri/gen/android/app/build/outputs/apk -name "*.apk"); do
             # Only sign unsigned apks
             if [[ "$apk" == *"-unsigned.apk" ]]; then
               ALIGNED_APK="${apk/-unsigned.apk/-aligned.apk}"
               SIGNED_APK="${apk/-unsigned.apk/.apk}"
-              
+
               # Zipalign
               $ZIPALIGN -v -p 4 "$apk" "$ALIGNED_APK"
-              
+
               # Sign
               $APKSIGNER sign --ks release.jks --ks-pass pass:$KEYSTORE_PASSWORD --ks-key-alias "$KEY_ALIAS" --key-pass pass:$KEY_PASSWORD --out "$SIGNED_APK" "$ALIGNED_APK"
-              
+
               # Verify
               $APKSIGNER verify "$SIGNED_APK"
-              
+
               echo "SIGNED_APK_PATH=$SIGNED_APK" >> $GITHUB_ENV
             fi
           done

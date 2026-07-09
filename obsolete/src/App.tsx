@@ -27,6 +27,7 @@ const navItems = [
 function AppChrome() {
   return (
     <>
+      <a className="skip-link" href="#main-content">跳到主要内容</a>
       <header className="workspace-topbar">
         <NavLink to="/" className="brand-lockup" aria-label="OmniFlow">
           <span className="brand-orb"><Banknote size={18} /></span>
@@ -78,7 +79,7 @@ export default function App() {
       <Router>
         <div className="workspace-shell">
           <AppChrome />
-          <main className="workspace-main">
+          <main id="main-content" className="workspace-main">
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/import" element={<ImportView />} />

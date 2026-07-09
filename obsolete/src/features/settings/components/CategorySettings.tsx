@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { Plus, Trash2, Edit2, Loader2, Save, X } from "lucide-react";
 import { Category, TransactionType } from "../../../models";
 import { Select } from "../../../components/ui/Select";
 import { IconPicker } from "../../../components/ui/IconPicker";
 import { CategoryIcon } from "../../../components/ui/CategoryIcon";
+import { invoke } from "../../../tauri-adapter/invoke";
 
 export default function CategorySettings() {
   const [categories, setCategories] = useState<Category[]>([]);

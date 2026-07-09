@@ -5,8 +5,8 @@ import { SearchResult, TransactionAPI, TransactionFilter } from "../../tauri-ada
 import { shortDate, yuan } from "../../lib/format";
 import { Select } from "../../components/ui/Select";
 import { DatePicker } from "../../components/ui/DatePicker";
-import { invoke } from "@tauri-apps/api/core";
 import { Category } from "../../models";
+import { invoke } from "../../tauri-adapter/invoke";
 
 export default function SearchView() {
   const { currentLedgerId, ledgers, accounts, fetchInitialData } = useAppStore();
@@ -78,40 +78,37 @@ export default function SearchView() {
         </div>
       </section>
 
-      <section className="panel panel-pad" style={{ overflow: "visible" }}>
-        {/* Main Search Bar */}
-        <div style={{ display: "flex", gap: "12px", alignItems: "stretch" }}>
-          <div style={{ position: "relative", flex: 1 }}>
-            <Search size={18} style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
+      <section className="panel panel-pad search-panel">
+        <div className="search-bar-row">
+          <div className="search-input-shell">
+            <Search size={18} className="search-input-icon" />
             <input 
-              className="field" 
-              style={{ paddingLeft: "42px", height: "44px", fontSize: "15px", fontWeight: 500 }}
+              className="field search-input" 
               placeholder="搜索商户、备注或关键字..." 
               value={filter.keyword || ""} 
               onChange={(event) => patch({ keyword: event.target.value || null })} 
               onKeyDown={(e) => e.key === "Enter" && runSearch()}
             />
           </div>
-          <button className="ghost-button" onClick={() => setShowAdvanced(!showAdvanced)} style={{ width: "44px", justifyContent: "center" }}>
+          <button className="ghost-button search-filter-button" onClick={() => setShowAdvanced(!showAdvanced)} aria-label="展开筛选">
             {showAdvanced ? <ChevronUp size={20} /> : <Filter size={20} />}
           </button>
-          <button className="primary-button" onClick={() => runSearch()} disabled={loading} style={{ height: "44px", padding: "0 24px" }}>
+          <button className="primary-button search-submit-button" onClick={() => runSearch()} disabled={loading}>
             搜索
           </button>
         </div>
 
-        {/* Advanced Search Grid */}
         {showAdvanced && (
-          <div className="advanced-search-rows" style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "16px", paddingTop: "16px", borderTop: "1px dashed color-mix(in srgb, var(--border) 60%, transparent)" }}>
-            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-start" }}>
-              <div style={{ width: "240px" }}>
+          <div className="advanced-search-rows">
+            <div className="advanced-search-row">
+              <div className="filter-field filter-wide">
                 <Select
                   value={searchLedgerId}
                   onChange={(val) => setSearchLedgerId(val)}
                   options={ledgers.map((ledger) => ({ value: ledger.id, label: ledger.name }))}
                 />
               </div>
-              <div style={{ width: "240px" }}>
+              <div className="filter-field filter-wide">
                 <Select
                   value={filter.account_id || ""}
                   onChange={(val) => patch({ account_id: val || null })}
@@ -123,8 +120,8 @@ export default function SearchView() {
               </div>
             </div>
             
-            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-start" }}>
-              <div style={{ width: "160px" }}>
+            <div className="advanced-search-row">
+              <div className="filter-field filter-narrow">
                 <Select
                   value={transactionType}
                   onChange={(val) => setTransactionType(val as "all" | "expense" | "income")}
@@ -135,7 +132,7 @@ export default function SearchView() {
                   ]}
                 />
               </div>
-              <div style={{ width: "180px" }}>
+              <div className="filter-field">
                 <Select
                   value={filter.parent_category_id || ""}
                   onChange={(val) => patch({ parent_category_id: val || null, category_id: null })}
@@ -145,7 +142,7 @@ export default function SearchView() {
                   ]}
                 />
               </div>
-              <div style={{ width: "180px" }}>
+              <div className="filter-field">
                 <Select
                   value={filter.category_id || ""}
                   onChange={(val) => patch({ category_id: val || null })}
@@ -157,15 +154,15 @@ export default function SearchView() {
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-start" }}>
-              <div style={{ width: "200px" }}>
+            <div className="advanced-search-row">
+              <div className="filter-field">
                 <DatePicker
                   value={filter.start_date || null}
                   onChange={(val) => patch({ start_date: val })}
                   placeholder="开始日期"
                 />
               </div>
-              <div style={{ width: "200px" }}>
+              <div className="filter-field">
                 <DatePicker
                   value={filter.end_date || null}
                   onChange={(val) => patch({ end_date: val })}
@@ -174,8 +171,8 @@ export default function SearchView() {
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-start" }}>
-              <div style={{ width: "150px" }}>
+            <div className="advanced-search-row">
+              <div className="filter-field filter-narrow">
                 <input 
                   className="field no-spin" 
                   type="text" 
@@ -188,7 +185,7 @@ export default function SearchView() {
                   }} 
                 />
               </div>
-              <div style={{ width: "150px" }}>
+              <div className="filter-field filter-narrow">
                 <input 
                   className="field no-spin" 
                   type="text" 
@@ -201,7 +198,7 @@ export default function SearchView() {
                   }} 
                 />
               </div>
-              <div style={{ width: "220px" }}>
+              <div className="filter-field filter-wide">
                 <input 
                   className="field" 
                   placeholder="指定标签 (支持模糊)" 
@@ -211,7 +208,7 @@ export default function SearchView() {
               </div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-start", marginTop: "4px" }}>
+            <div className="advanced-search-actions">
               <button className="ghost-button" onClick={resetFilters}>
                 重置选项
               </button>

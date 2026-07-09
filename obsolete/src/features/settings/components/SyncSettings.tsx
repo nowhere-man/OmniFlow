@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore } from "../../../store/useSettingsStore";
 import { Cloud, Download, Loader2, KeyRound } from "lucide-react";
+import { invoke } from "../../../tauri-adapter/invoke";
 
 export default function SyncSettings() {
   const { syncConfig, setSyncConfig } = useSettingsStore();

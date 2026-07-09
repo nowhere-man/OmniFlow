@@ -5,6 +5,7 @@ import { Transaction, Account } from "../../tauri-adapter/transactions";
 import { Category } from "../../models";
 import { Select } from "../../components/ui/Select";
 import { DatePicker } from "../../components/ui/DatePicker";
+import { CategoryIcon } from "../../components/ui/CategoryIcon";
 
 interface TransactionEditorProps {
   transaction: Transaction;
@@ -16,8 +17,6 @@ interface TransactionEditorProps {
   categories: Category[];
 }
 
-import { CategoryIcon } from "../../components/ui/CategoryIcon";
-
 function categoryOptions(categories: Category[]) {
   const parents = categories.filter((category) => !category.parent_id);
   const childrenByParent = new Map<string, Category[]>();
@@ -28,11 +27,11 @@ function categoryOptions(categories: Category[]) {
   return parents.flatMap((parent) => [
     { 
       id: parent.id, 
-      label: <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>{parent.icon && <CategoryIcon name={parent.icon} size={14} />} {parent.name}</div> 
+      label: <div className="select-option-label">{parent.icon && <CategoryIcon name={parent.icon} size={14} />} {parent.name}</div> 
     },
     ...(childrenByParent.get(parent.id) || []).map((child) => ({ 
       id: child.id, 
-      label: <div style={{ display: "flex", alignItems: "center", gap: "8px" }}><div style={{ width: 14 }}/> {parent.name} / {child.name}</div> 
+      label: <div className="select-option-label child"><span aria-hidden="true" /> {parent.name} / {child.name}</div> 
     })),
   ]);
 }
@@ -41,18 +40,17 @@ export function TransactionEditor({ transaction, onChange, onSave, onDelete, onC
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
+    <div className="modal-overlay transaction-editor-overlay" onClick={onClose}>
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         transition={{ duration: 0.2 }}
         onClick={(e) => e.stopPropagation()}
-        className="panel"
-        style={{ width: "420px", padding: "24px", display: "flex", flexDirection: "column", gap: "16px", background: "var(--background)", border: "1px solid var(--border)", borderRadius: "12px", boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }}
+        className="panel transaction-editor"
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-          <h2 style={{ margin: 0, fontSize: "18px" }}>{onDelete ? "编辑明细" : "记一笔"}</h2>
+        <div className="transaction-editor-head">
+          <h2>{onDelete ? "编辑明细" : "记一笔"}</h2>
           <button className="icon-button" onClick={onClose} aria-label="关闭"><X size={18} /></button>
         </div>
 
@@ -61,7 +59,7 @@ export function TransactionEditor({ transaction, onChange, onSave, onDelete, onC
           <button className={transaction.transaction_type === "income" ? "active" : ""} onClick={() => onChange({ ...transaction, transaction_type: "income" })}>收入</button>
         </div>
         
-        <input className="money-input" type="number" min="0" step="0.01" value={transaction.amount || ""} placeholder="0.00" onChange={(event) => onChange({ ...transaction, amount: Number(event.target.value) })} style={{ fontSize: "32px", textAlign: "center", padding: "12px", border: "none", background: "transparent", borderBottom: "2px solid var(--border)", outline: "none", color: "var(--foreground)" }} />
+        <input className="money-input editor-money-input" type="number" min="0" step="0.01" value={transaction.amount || ""} placeholder="0.00" onChange={(event) => onChange({ ...transaction, amount: Number(event.target.value) })} />
         
         <input className="field" value={transaction.merchant || ""} placeholder="商户" onChange={(event) => onChange({ ...transaction, merchant: event.target.value })} />
         <input className="field" value={transaction.notes || ""} placeholder="备注" onChange={(event) => onChange({ ...transaction, notes: event.target.value })} />
@@ -89,21 +87,21 @@ export function TransactionEditor({ transaction, onChange, onSave, onDelete, onC
           ]}
         />
 
-        <label style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px", cursor: "pointer" }}>
+        <label className="check-row editor-check-row">
           <input type="checkbox" checked={transaction.is_excluded} onChange={(event) => onChange({ ...transaction, is_excluded: event.target.checked })} />
           <span>不计入各项收支统计</span>
         </label>
         
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
-           <button className="primary-button" onClick={onSave} style={{ padding: "12px", fontSize: "15px" }}><Save size={17} />保存</button>
+        <div className="editor-actions">
+           <button className="primary-button editor-save-button" onClick={onSave}><Save size={17} />保存</button>
            
            {onDelete && (confirmDelete ? (
-             <div style={{ display: "flex", gap: "8px" }}>
-               <button className="primary-button" onClick={onDelete} style={{ flex: 1, padding: "12px", fontSize: "15px", background: "var(--danger)" }}>确认删除</button>
-               <button className="ghost-button" onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: "12px", fontSize: "15px", border: "1px solid var(--border)" }}>取消</button>
+             <div className="editor-action-row">
+               <button className="danger-button grow-button" onClick={onDelete}>确认删除</button>
+               <button className="ghost-button grow-button" onClick={() => setConfirmDelete(false)}>取消</button>
              </div>
            ) : (
-             <button className="ghost-button" onClick={() => setConfirmDelete(true)} style={{ padding: "12px", fontSize: "15px", color: "var(--danger)", border: "1px solid color-mix(in srgb, var(--danger) 20%, transparent)" }}><Trash2 size={17} />删除明细</button>
+             <button className="ghost-button editor-delete-button" onClick={() => setConfirmDelete(true)}><Trash2 size={17} />删除明细</button>
            ))}
         </div>
       </motion.div>

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Plus, LayoutGrid, List } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isToday } from "date-fns";
@@ -7,6 +6,7 @@ import { zhCN } from "date-fns/locale";
 
 import { useAppStore } from "../../stores/appStore";
 import { Transaction, TransactionAPI } from "../../tauri-adapter/transactions";
+import { invoke } from "../../tauri-adapter/invoke";
 import { Category } from "../../models";
 import { YearMonthPicker } from "../../components/ui/DatePicker";
 import { TransactionEditor } from "../transactions/TransactionEditor";
@@ -164,18 +164,17 @@ export default function Dashboard() {
   }
 
   const netIncome = metrics.income - metrics.expense;
-  const netColor = netIncome > 0 ? "var(--success)" : netIncome < 0 ? "var(--danger)" : "inherit";
   const weekDays = ["一", "二", "三", "四", "五", "六", "日"];
 
   return (
     <div className="money-flow-page">
       <header className="dashboard-header">
-        <div style={{ width: "80px" }}></div>
+        <div className="dashboard-header-spacer" aria-hidden="true" />
         <div className="dashboard-month-selector">
           <button className="icon-button" onClick={handlePrevMonth} aria-label="上个月">
             <ChevronLeft size={20} />
           </button>
-          <div style={{ position: "relative" }}>
+          <div className="month-picker-anchor">
             <button 
               className="dashboard-title-trigger"
               onClick={() => setShowMonthPicker(!showMonthPicker)}
@@ -196,7 +195,7 @@ export default function Dashboard() {
             <ChevronRight size={20} />
           </button>
         </div>
-        <div style={{ width: "80px" }}></div>
+        <div className="dashboard-header-spacer" aria-hidden="true" />
       </header>
 
       <section className="transactions-kpis">
@@ -210,12 +209,11 @@ export default function Dashboard() {
         </div>
         <div className="kpi-card">
           <div className="kpi-card-label">净收入</div>
-          <div className="kpi-card-value" style={{ color: netColor }}>{yuan(netIncome)}</div>
+          <div className={`kpi-card-value ${netIncome > 0 ? "income" : netIncome < 0 ? "expense" : ""}`}>{yuan(netIncome)}</div>
         </div>
       </section>
 
-      <div className="home-stack" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        {/* Top Block: Calendar */}
+      <div className="home-stack">
         <div className="calendar-panel">
           <div className="calendar-weekdays">
             {weekDays.map(d => (
@@ -223,7 +221,7 @@ export default function Dashboard() {
             ))}
           </div>
           {isLoading ? (
-            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", minHeight: "200px" }}>正在载入日历...</div>
+            <div className="calendar-loading">正在载入日历...</div>
           ) : (
             <div className="calendar-grid">
               {calendarDays.map((item, idx) => (
@@ -247,17 +245,16 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Bottom Block: Timeline */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px", minHeight: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 4px" }}>
-            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "var(--foreground)" }}>本月收支明细</h3>
+        <div className="timeline-stack">
+          <div className="timeline-toolbar">
+            <h3 className="section-title">本月收支明细</h3>
             <div className="segmented">
               <button className={layoutMode === "card" ? "active" : ""} onClick={() => setLayoutMode("card")} aria-label="卡片布局"><LayoutGrid size={16} /></button>
               <button className={layoutMode === "list" ? "active" : ""} onClick={() => setLayoutMode("list")} aria-label="列表布局"><List size={16} /></button>
             </div>
           </div>
           
-          <section className="timeline-panel hide-scrollbar" style={{ flex: 1, overflowY: "auto", paddingBottom: "32px", maxHeight: "calc(100vh - 280px)" }}>
+          <section className="timeline-panel hide-scrollbar month-timeline">
             {isLoading ? (
               <div className="empty-line">正在载入数据</div>
             ) : groupedTransactions.length === 0 ? (
@@ -270,9 +267,9 @@ export default function Dashboard() {
                       {group.label}
                     </div>
                     {layoutMode === "list" ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      <div className="transaction-list">
                         {group.transactions.map((transaction) => (
-                          <article key={transaction.id} className="transaction-card" onClick={() => setEditing(transaction)} style={{ cursor: 'pointer' }}>
+                          <article key={transaction.id} className="transaction-card" onClick={() => setEditing(transaction)}>
                             <div className={transaction.transaction_type === "expense" ? "tx-symbol expense" : "tx-symbol income"}>
                               {getTransactionIcon(transaction, categories) ? (
                                 <CategoryIcon name={getTransactionIcon(transaction, categories)!} size={16} />
@@ -283,7 +280,7 @@ export default function Dashboard() {
                             <div className="tx-body">
                               <div className="tx-mainline">
                                 <strong>{transaction.merchant || transaction.notes || "未命名交易"}</strong>
-                                <b style={{ color: transaction.transaction_type === "expense" ? "var(--danger)" : "var(--success)" }}>
+                                <b className={transaction.transaction_type === "expense" ? "amount-expense" : "amount-income"}>
                                   {transaction.transaction_type === "expense" ? "-" : "+"}{yuan(transaction.amount)}
                                 </b>
                               </div>
@@ -304,31 +301,30 @@ export default function Dashboard() {
                             key={transaction.id} 
                             onClick={() => setEditing(transaction)}
                             className="transaction-item-card"
-                            style={{ cursor: 'pointer' }}
                           >
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                 <div className={transaction.transaction_type === "expense" ? "tx-symbol expense" : "tx-symbol income"} style={{ width: "32px", height: "32px", flexShrink: 0 }}>
+                            <div className="transaction-card-head">
+                               <div className="transaction-card-identity">
+                                 <div className={transaction.transaction_type === "expense" ? "tx-symbol expense" : "tx-symbol income"}>
                                    {getTransactionIcon(transaction, categories) ? (
                                      <CategoryIcon name={getTransactionIcon(transaction, categories)!} size={14} />
                                    ) : (
                                      transaction.transaction_type === "expense" ? <ArrowUp size={14} /> : <ArrowDown size={14} />
                                    )}
                                  </div>
-                                 <div>
-                                   <div style={{ fontWeight: 600, fontSize: "14px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "120px" }}>{transaction.merchant || transaction.notes || "未命名交易"}</div>
-                                   <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "2px" }}>
+                                 <div className="transaction-card-copy">
+                                   <strong>{transaction.merchant || transaction.notes || "未命名交易"}</strong>
+                                   <small>
                                      {transaction.category_id ? categoryLabelById.get(transaction.category_id) : "未分类"}
-                                    </div>
+                                   </small>
                                  </div>
                                </div>
-                               <b style={{ fontSize: "15px", color: transaction.transaction_type === "expense" ? "var(--danger)" : "var(--success)" }}>
+                               <b className={`transaction-card-amount ${transaction.transaction_type === "expense" ? "amount-expense" : "amount-income"}`}>
                                  {transaction.transaction_type === "expense" ? "-" : "+"}{yuan(transaction.amount)}
                                </b>
                             </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", color: "var(--muted)", marginTop: "auto", paddingTop: "12px" }}>
+                            <div className="transaction-card-meta">
                               <span>{format(new Date(transaction.transaction_date * 1000), "HH:mm")}</span>
-                              {transaction.is_excluded && <span style={{ background: "var(--subtle)", padding: "2px 8px", borderRadius: "999px" }}>不计收支</span>}
+                              {transaction.is_excluded && <span className="status-chip">不计收支</span>}
                             </div>
                           </div>
                         ))}

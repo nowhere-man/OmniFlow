@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { Database, Download, AlertTriangle, Loader2 } from "lucide-react";
+import { invoke } from "../../../tauri-adapter/invoke";
 
 export default function DataSettings() {
   const [isExporting, setIsExporting] = useState(false);

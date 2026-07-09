@@ -11,11 +11,11 @@ export default function BasicSettings() {
   ];
 
   const colorOptions: { value: ThemeColor; label: string; colorHex: string }[] = [
-    { value: 'mint', label: '薄荷绿', colorHex: '#10b981' },
-    { value: 'blue', label: '科技蓝', colorHex: '#3b82f6' },
-    { value: 'purple', label: '星空紫', colorHex: '#a855f7' },
-    { value: 'orange', label: '活力橙', colorHex: '#f97316' },
-    { value: 'rose', label: '玫瑰红', colorHex: '#f43f5e' },
+    { value: 'mint', label: '薄荷绿', colorHex: '#3f7f72' },
+    { value: 'blue', label: '科技蓝', colorHex: '#56779b' },
+    { value: 'purple', label: '星空紫', colorHex: '#7b6596' },
+    { value: 'orange', label: '暖琥珀', colorHex: '#a9783d' },
+    { value: 'rose', label: '灰玫瑰', colorHex: '#a95d6f' },
   ];
 
   return (

@@ -99,18 +99,18 @@ export default function ChartsView() {
 
       {periodMode === "range" && (
         <section className="panel panel-pad range-picker">
-          <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <label className="range-field">
             <CalendarRange size={16} />开始 
-            <div style={{ width: "160px" }}>
+            <div className="range-date-control">
               <DatePicker 
                 value={new Date(`${rangeStart}T00:00:00`).getTime() / 1000} 
                 onChange={(val) => setRangeStart(val ? format(new Date(val * 1000), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"))} 
               />
             </div>
           </label>
-          <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <label className="range-field">
             <CalendarRange size={16} />结束 
-            <div style={{ width: "160px" }}>
+            <div className="range-date-control">
               <DatePicker 
                 value={new Date(`${rangeEnd}T00:00:00`).getTime() / 1000} 
                 onChange={(val) => setRangeEnd(val ? format(new Date(val * 1000), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"))} 

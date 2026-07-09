@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { CheckCircle2, FileUp, Loader2, Plus, ShieldAlert, Sparkles, Trash2 } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../../stores/appStore";
 import { ImportPreviewItem, Rule, TransactionAPI } from "../../tauri-adapter/transactions";
+import { invoke } from "../../tauri-adapter/invoke";
 import { Category } from "../../models";
 import { shortDate, yuan } from "../../lib/format";
 import { Select } from "../../components/ui/Select";
