@@ -11,7 +11,7 @@ struct SearchView: View {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                     TextField("关键词、分类、账户或标签", text: $store.searchText)
                         .textFieldStyle(.plain)
-                        .onSubmit(perform: search)
+                        .onSubmit { search() }
                     if !store.searchText.isEmpty {
                         Button { store.searchText = ""; search() } label: { Image(systemName: "xmark.circle.fill") }
                             .buttonStyle(.plain)

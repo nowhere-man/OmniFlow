@@ -905,7 +905,7 @@ final class AppStore: ObservableObject {
                 self?.error = message
                 self?.expenseMinor = value?.summary.expenseTotal ?? 0
                 self?.incomeMinor = value?.summary.incomeTotal ?? 0
-                self?.transactions = value?.groups.flatMap { $0.items }.map(Self.transaction) ?? []
+                self?.transactions = value?.groups.flatMap { $0.items }.map { Self.transaction($0) } ?? []
                 self?.calendarDays = value?.calendar.map {
                     CalendarDayUI(
                         id: "\($0.date.year)-\($0.date.monthNumber)-\($0.date.dayOfMonth)",
@@ -972,7 +972,7 @@ final class AppStore: ObservableObject {
                 self?.error = message
                 self?.dateDetailExpenseMinor = value?.summary.expenseTotal ?? 0
                 self?.dateDetailIncomeMinor = value?.summary.incomeTotal ?? 0
-                self?.dateDetailTransactions = value?.items.map(Self.transaction) ?? []
+                self?.dateDetailTransactions = value?.items.map { Self.transaction($0) } ?? []
             }
         }
     }
