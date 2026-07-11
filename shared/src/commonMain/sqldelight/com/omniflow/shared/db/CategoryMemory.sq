@@ -12,3 +12,6 @@ SELECT category_id FROM category_memory WHERE ledger_id = :ledger_id AND memory_
 upsertCategoryMemory:
 INSERT OR REPLACE INTO category_memory(ledger_id, memory_key, category_id, updated_at)
 VALUES (:ledger_id, :memory_key, :category_id, :updated_at);
+
+deleteCategoryMemoriesForCategory:
+DELETE FROM category_memory WHERE category_id = :category_id;

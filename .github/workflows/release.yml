@@ -26,6 +26,9 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Verify shared logic, migrations, and Android lint
+        run: ./gradlew :shared:jvmTest :shared:verifySqlDelightMigration :androidApp:lintRelease --stacktrace
+
       - name: Decode Android keystore
         env:
           RELEASE_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

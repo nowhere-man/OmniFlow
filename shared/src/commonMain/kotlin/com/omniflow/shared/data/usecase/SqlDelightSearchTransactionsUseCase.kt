@@ -9,6 +9,7 @@ import com.omniflow.shared.domain.model.SearchTransactionItem
 import com.omniflow.shared.domain.model.TransactionListItem
 import com.omniflow.shared.domain.model.TransactionSearchQuery
 import com.omniflow.shared.domain.model.TransactionSummary
+import com.omniflow.shared.domain.model.TransactionSource
 import com.omniflow.shared.domain.model.TransactionTag
 import com.omniflow.shared.domain.model.TransactionType
 import com.omniflow.shared.domain.usecase.SearchTransactionsUseCase
@@ -91,12 +92,13 @@ class SqlDelightSearchTransactionsUseCase(
             categoryId = row.category_id,
             categoryName = row.category_name,
             primaryCategoryName = row.primary_category_name,
-            categoryIconKey = row.category_icon_key,
+            categoryIconKey = row.primary_category_icon_key,
             amount = Money(row.amount_minor),
             type = TransactionType.valueOf(row.type),
             occurredAt = Instant.fromEpochMilliseconds(row.occurred_at),
             note = row.note,
             isExcluded = row.is_excluded != 0L,
+            source = row.external_source?.let(TransactionSource::valueOf),
         ),
         primaryCategoryId = row.primary_category_id,
         primaryCategoryName = row.primary_category_name,

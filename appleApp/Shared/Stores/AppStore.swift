@@ -38,6 +38,7 @@ final class AppStore: ObservableObject {
     @Published var editingTransaction: TransactionUI?
     @Published var editingTagIDs: Set<String> = []
     @Published var draftTransactionDate: Date?
+    @Published var draftTransactionLedgerID: String?
     @Published private(set) var transactionDraftRevision = UUID()
     @Published var searchLedgerID: String?
     @Published var searchType: EntryType?
@@ -74,6 +75,10 @@ final class AppStore: ObservableObject {
     @Published var analyticsPrimaryCategoryID: String?
     @Published var analyticsStatement: StatementTableUI?
     @Published var backups: [BackupUI] = []
+    @Published var syncPhase = "IDLE"
+    @Published var syncProgress: Double?
+    @Published var syncLastBackupAt: String?
+    @Published var syncError: String?
     #if canImport(OmniFlowShared)
     private var analyticsSubscription: AppleFlowSubscription?
     private var homeSubscription: AppleFlowSubscription?
@@ -110,7 +115,7 @@ final class AppStore: ObservableObject {
         )
         bridge.initialize { [weak self] message in
             Task { @MainActor in
-                self?.error = message
+                if let message { self?.error = message }
                 self?.startObservers()
             }
         }
@@ -132,7 +137,7 @@ final class AppStore: ObservableObject {
             primaryCategoryId: analyticsPrimaryCategoryID
         ) { [weak self] value, message in
             Task { @MainActor in
-                self?.error = message
+                if let message { self?.error = message }
                 self?.analyticsExpenseMinor = value?.summary.expenseTotal ?? 0
                 self?.analyticsIncomeMinor = value?.summary.incomeTotal ?? 0
                 self?.analyticsPreviousExpenseMinor = value?.previousPeriod.previous.expenseTotal ?? 0
@@ -208,7 +213,7 @@ final class AppStore: ObservableObject {
         #if canImport(OmniFlowShared)
         bridge.loadStatementTable(ledgerId: analyticsLedgerID, year: Int32(year)) { [weak self] value, message in
             Task { @MainActor in
-                self?.error = message
+                if let message { self?.error = message }
                 if let table = value {
                     self?.analyticsStatement = StatementTableUI(
                         year: Int(table.year),
@@ -260,7 +265,7 @@ final class AppStore: ObservableObject {
             endMillis: nil
         ) { [weak self] result, message in
             Task { @MainActor in
-                self?.error = message
+                if let message { self?.error = message }
                 self?.searchResults = result?.items.map { Self.transaction($0.transaction, tagNames: $0.tags.map { $0.name }) } ?? []
                 self?.searchExpenseMinor = result?.summary.expenseTotal ?? 0
                 self?.searchIncomeMinor = result?.summary.incomeTotal ?? 0
@@ -297,7 +302,7 @@ final class AppStore: ObservableObject {
             searchResourceSubscriptions.append(bridge.watchCategories(ledgerId: ledgerID) { [weak self] values, message in
                 Task { @MainActor in
                     guard let self else { return }
-                    self.error = message
+                    if let message { self.error = message }
                     self.searchCategoriesByLedger[ledgerID] = values?.map {
                         CategoryUI(
                             id: $0.id,
@@ -313,7 +318,7 @@ final class AppStore: ObservableObject {
             searchResourceSubscriptions.append(bridge.watchTags(ledgerId: ledgerID) { [weak self] values, message in
                 Task { @MainActor in
                     guard let self else { return }
-                    self.error = message
+                    if let message { self.error = message }
                     self.searchTagsByLedger[ledgerID] = values?.map { TagUI(id: $0.id, name: $0.name) } ?? []
                     self.searchTags = ledgerIDs.flatMap { self.searchTagsByLedger[$0] ?? [] }
                 }
@@ -384,8 +389,9 @@ final class AppStore: ObservableObject {
         editingTransaction = nil
         editingTagIDs = []
         draftTransactionDate = date
+        draftTransactionLedgerID = ledgerID ?? defaultLedgerID
         transactionDraftRevision = UUID()
-        selectResourceLedger(ledgerID ?? defaultLedgerID ?? selectedLedgerID ?? ledgers.first?.id)
+        selectResourceLedger(draftTransactionLedgerID)
         destination = .transaction
     }
 
@@ -393,12 +399,13 @@ final class AppStore: ObservableObject {
         editingTransaction = transaction
         editingTagIDs = []
         draftTransactionDate = nil
+        draftTransactionLedgerID = transaction.ledgerID
         transactionDraftRevision = UUID()
         selectResourceLedger(transaction.ledgerID)
         #if canImport(OmniFlowShared)
         bridge.loadTransaction(id: transaction.id) { [weak self] value, message in
             Task { @MainActor in
-                self?.error = message
+                if let message { self?.error = message }
                 self?.editingTagIDs = Set(value?.tagIds ?? [])
             }
         }
@@ -632,7 +639,7 @@ final class AppStore: ObservableObject {
         #if canImport(OmniFlowShared)
         bridge.listBackups { [weak self] values, message in
             Task { @MainActor in
-                self?.error = message
+                if let message { self?.error = message }
                 self?.backupObjects = values ?? []
                 self?.backups = values?.map { BackupUI(id: $0.backupId, createdAt: String(describing: $0.createdAt)) } ?? []
             }
@@ -698,7 +705,7 @@ final class AppStore: ObservableObject {
             startMillis: Self.boxedLong(rangeStart.map { Int64($0.timeIntervalSince1970 * 1000) }),
             endMillis: Self.boxedLong(rangeEnd.map { Int64($0.timeIntervalSince1970 * 1000) })
         ) { [weak self] payload, _, message in
-            Task { @MainActor in self?.error = message; completion(payload) }
+            Task { @MainActor in if let message { self?.error = message }; completion(payload) }
         }
         #else
         completion(nil)
@@ -709,18 +716,25 @@ final class AppStore: ObservableObject {
     func importFile(_ url: URL, selectedFormat: AppleImportFormat? = nil) {
         guard let ledgerID = resourceLedgerID else { error = "请先选择账本"; return }
         #if canImport(OmniFlowShared)
-        do {
-            let data = try Data(contentsOf: url)
-            let bytes = KotlinByteArray(size: Int32(data.count))
-            data.enumerated().forEach { bytes.set(index: Int32($0.offset), value: Int8(bitPattern: $0.element)) }
-            importSubscription?.cancel()
-            importSubscription = bridge.previewImport(ledgerId: ledgerID, fileName: url.lastPathComponent, bytes: bytes, formatName: selectedFormat?.rawValue) { [weak self] preview, message in
-                Task { @MainActor in
-                    self?.error = message
-                    self?.applyImportPreview(preview)
+        Task {
+            do {
+                let bytes = try await Task.detached { () throws -> KotlinByteArray in
+                    let accessing = url.startAccessingSecurityScopedResource()
+                    defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+                    let data = try Data(contentsOf: url, options: .mappedIfSafe)
+                    let bytes = KotlinByteArray(size: Int32(data.count))
+                    data.enumerated().forEach { bytes.set(index: Int32($0.offset), value: Int8(bitPattern: $0.element)) }
+                    return bytes
+                }.value
+                importSubscription?.cancel()
+                importSubscription = bridge.previewImport(ledgerId: ledgerID, fileName: url.lastPathComponent, bytes: bytes, formatName: selectedFormat?.rawValue) { [weak self] preview, message in
+                    Task { @MainActor in
+                        if let message { self?.error = message }
+                        self?.applyImportPreview(preview)
+                    }
                 }
-            }
-        } catch { self.error = error.localizedDescription }
+            } catch { self.error = error.localizedDescription }
+        }
         #else
         error = "共享 Framework 尚未构建"
         #endif
@@ -740,7 +754,7 @@ final class AppStore: ObservableObject {
             excluded: item.excluded,
             skipped: item.skipped
         ) { [weak self] preview, message in
-            Task { @MainActor in self?.error = message; self?.applyImportPreview(preview) }
+            Task { @MainActor in if let message { self?.error = message }; self?.applyImportPreview(preview) }
         }
         #endif
     }
@@ -761,7 +775,7 @@ final class AppStore: ObservableObject {
         guard let sessionID = importSessionID, !selectedImportItemIDs.isEmpty else { return }
         #if canImport(OmniFlowShared)
         bridge.editImportCategories(sessionId: sessionID, itemIds: selectedImportItemIDs, categoryId: categoryID) { [weak self] preview, message in
-            Task { @MainActor in self?.error = message; self?.applyImportPreview(preview) }
+            Task { @MainActor in if let message { self?.error = message }; self?.applyImportPreview(preview) }
         }
         #endif
     }
@@ -770,7 +784,7 @@ final class AppStore: ObservableObject {
         guard let sessionID = importSessionID, !selectedImportItemIDs.isEmpty else { return }
         #if canImport(OmniFlowShared)
         bridge.editImportSkipped(sessionId: sessionID, itemIds: selectedImportItemIDs, skipped: skipped) { [weak self] preview, message in
-            Task { @MainActor in self?.error = message; self?.applyImportPreview(preview) }
+            Task { @MainActor in if let message { self?.error = message }; self?.applyImportPreview(preview) }
         }
         #endif
     }
@@ -823,7 +837,7 @@ final class AppStore: ObservableObject {
     private func startObservers() {
         subscriptions.append(bridge.watchLedgers { [weak self] values, message in
             Task { @MainActor in
-                self?.error = message
+                if let message { self?.error = message }
                 self?.ledgers = values?.map { LedgerUI(id: $0.id, name: $0.name, coverKey: $0.coverKey) } ?? []
                 if self?.resourceLedgerID == nil {
                     self?.resourceLedgerID = self?.selectedLedgerID ?? self?.ledgers.first?.id
@@ -834,11 +848,11 @@ final class AppStore: ObservableObject {
             }
         })
         subscriptions.append(bridge.watchDefaultLedgerId { [weak self] value, message in
-            Task { @MainActor in self?.error = message; self?.defaultLedgerID = value }
+            Task { @MainActor in if let message { self?.error = message }; self?.defaultLedgerID = value }
         })
         subscriptions.append(bridge.watchAccounts { [weak self] values, message in
             Task { @MainActor in
-                self?.error = message
+                if let message { self?.error = message }
                 self?.accounts = values?.map {
                     AccountUI(
                         id: $0.id,
@@ -869,13 +883,13 @@ final class AppStore: ObservableObject {
                 )
             } ?? []
             Task { @MainActor in
-                self?.error = message
+                if let message { self?.error = message }
                 self?.reminders = reminders
             }
         })
         subscriptions.append(bridge.watchPreferenceSnapshot { [weak self] value, message in
             Task { @MainActor in
-                self?.error = message
+                if let message { self?.error = message }
                 self?.appLockEnabled = value?.appLockEnabled ?? false
                 self?.appearanceMode = value?.appearanceMode ?? "SYSTEM"
                 self?.themeColor = value?.themeColor ?? "LAVENDER"
@@ -885,6 +899,16 @@ final class AppStore: ObservableObject {
                 if self?.resourceLedgerID == nil { self?.resourceLedgerID = value?.homeLedgerId ?? self?.ledgers.first?.id }
                 self?.observeHome()
                 self?.observeCategories()
+            }
+        })
+        subscriptions.append(bridge.watchSyncState { [weak self] value, message in
+            Task { @MainActor in
+                if let message { self?.error = message }
+                self?.syncPhase = value?.phase ?? "IDLE"
+                self?.syncProgress = value?.progress?.doubleValue
+                self?.syncLastBackupAt = value?.lastBackupAt
+                self?.syncError = value?.errorMessage
+                if value?.phase == "SUCCESS" { self?.loadBackups() }
             }
         })
         observeHome()
@@ -902,7 +926,7 @@ final class AppStore: ObservableObject {
         ) { [weak self] value, message in
             Task { @MainActor in
                 self?.loading = false
-                self?.error = message
+                if let message { self?.error = message }
                 self?.expenseMinor = value?.summary.expenseTotal ?? 0
                 self?.incomeMinor = value?.summary.incomeTotal ?? 0
                 self?.transactions = value?.groups.flatMap { $0.items }.map { Self.transaction($0) } ?? []
@@ -925,7 +949,7 @@ final class AppStore: ObservableObject {
         guard let ledgerID = resourceLedgerID else { categories = []; tags = []; rules = []; return }
         categorySubscription = bridge.watchCategories(ledgerId: ledgerID) { [weak self] values, message in
             Task { @MainActor in
-                self?.error = message
+                if let message { self?.error = message }
                 self?.categories = values?.map {
                     CategoryUI(
                         id: $0.id,
@@ -938,11 +962,11 @@ final class AppStore: ObservableObject {
             }
         }
         tagSubscription = bridge.watchTags(ledgerId: ledgerID) { [weak self] values, message in
-            Task { @MainActor in self?.error = message; self?.tags = values?.map { TagUI(id: $0.id, name: $0.name) } ?? [] }
+            Task { @MainActor in if let message { self?.error = message }; self?.tags = values?.map { TagUI(id: $0.id, name: $0.name) } ?? [] }
         }
         ruleSubscription = bridge.watchRules(ledgerId: ledgerID) { [weak self] values, message in
             Task { @MainActor in
-                self?.error = message
+                if let message { self?.error = message }
                 self?.rules = values?.map {
                     RuleUI(
                         id: $0.id,
@@ -969,7 +993,7 @@ final class AppStore: ObservableObject {
             endMillis: Int64(end.timeIntervalSince1970 * 1000)
         ) { [weak self] value, message in
             Task { @MainActor in
-                self?.error = message
+                if let message { self?.error = message }
                 self?.dateDetailExpenseMinor = value?.summary.expenseTotal ?? 0
                 self?.dateDetailIncomeMinor = value?.summary.incomeTotal ?? 0
                 self?.dateDetailTransactions = value?.items.map { Self.transaction($0) } ?? []
@@ -993,6 +1017,7 @@ final class AppStore: ObservableObject {
             date: Date(timeIntervalSince1970: TimeInterval(value.occurredAt.epochSeconds)),
             note: value.note ?? "",
             excluded: value.isExcluded,
+            source: value.source.map { String(describing: $0).components(separatedBy: ".").last ?? "" },
             tagNames: tagNames
         )
     }

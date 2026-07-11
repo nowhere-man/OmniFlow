@@ -66,19 +66,32 @@ class SqlDelightAccountRepository(
     override suspend fun update(account: Account) {
         require(account.name.isNotBlank()) { "账户名称不能为空" }
         require(account.iconKey.isNotBlank()) { "请选择账户图标" }
-        require(database.accountQueries.activeAccountId(account.id).executeAsOneOrNull() != null) {
-            "账户不存在或已删除"
+        val timestamp = now().toEpochMilliseconds()
+        database.transaction {
+            val previousBalance = database.accountQueries.activeAccountBalance(account.id).executeAsOneOrNull()
+                ?: error("账户不存在或已删除")
+            database.accountQueries.updateAccount(
+                name = account.name.trim(),
+                type = account.type.name,
+                icon_key = account.iconKey,
+                card_number = account.cardNumber?.trim()?.takeIf(String::isNotEmpty),
+                note = account.note?.trim()?.takeIf(String::isNotEmpty),
+                include_in_total_assets = if (account.includeInTotalAssets) 1L else 0L,
+                updated_at = timestamp,
+                id = account.id,
+            )
+            if (account.balance.minor != previousBalance) {
+                database.accountQueries.setAccountBalance(account.balance.minor, timestamp, account.id)
+                database.accountQueries.insertAccountBalanceRecord(
+                    id = ids.next(),
+                    account_id = account.id,
+                    date = dayStart(timestamp),
+                    balance_minor = account.balance.minor,
+                    delta_minor = account.balance.minor - previousBalance,
+                    created_at = timestamp,
+                )
+            }
         }
-        database.accountQueries.updateAccount(
-            name = account.name.trim(),
-            type = account.type.name,
-            icon_key = account.iconKey,
-            card_number = account.cardNumber?.trim()?.takeIf(String::isNotEmpty),
-            note = account.note?.trim()?.takeIf(String::isNotEmpty),
-            include_in_total_assets = if (account.includeInTotalAssets) 1L else 0L,
-            updated_at = now().toEpochMilliseconds(),
-            id = account.id,
-        )
     }
 
     override suspend fun calibrate(accountId: AccountId, balance: Money) {
@@ -104,9 +117,9 @@ class SqlDelightAccountRepository(
     }
 
     private fun dayStart(timestamp: Long): Long = Instant.fromEpochMilliseconds(timestamp)
-        .toLocalDateTime(TimeZone.of("Asia/Shanghai"))
+        .toLocalDateTime(TimeZone.currentSystemDefault())
         .date
-        .atStartOfDayIn(TimeZone.of("Asia/Shanghai"))
+        .atStartOfDayIn(TimeZone.currentSystemDefault())
         .toEpochMilliseconds()
 
     override suspend fun summary(): AccountSummary {

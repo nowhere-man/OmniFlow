@@ -4,9 +4,13 @@ import com.omniflow.shared.data.facade.SqlDelightManagementFacade
 import com.omniflow.shared.data.local.createJvmDatabase
 import com.omniflow.shared.data.repository.SqlDelightLedgerRepository
 import com.omniflow.shared.data.repository.SqlDelightCategoryRepository
+import com.omniflow.shared.data.repository.SqlDelightAccountRepository
 import com.omniflow.shared.data.repository.SqlDelightRuleRepository
 import com.omniflow.shared.domain.model.Rule
 import com.omniflow.shared.domain.model.Category
+import com.omniflow.shared.domain.model.Account
+import com.omniflow.shared.domain.model.AccountType
+import com.omniflow.shared.domain.model.Money
 import com.omniflow.shared.domain.model.RuleActionType
 import com.omniflow.shared.domain.model.RuleConditionType
 import com.omniflow.shared.domain.model.TransactionType
@@ -76,5 +80,35 @@ class SqlDelightManagementFacadeTest {
         DeleteLedgerUseCase(ledgers)("ledger").getOrThrow()
         assertNull(facade.observeDefaultLedgerId().first().getOrThrow())
         assertEquals(emptyList(), facade.observeRules("ledger").first().getOrThrow())
+    }
+
+    @Test
+    fun updatingAccountPersistsProfileAndBalanceTogether() = runBlocking {
+        val database = createJvmDatabase()
+        val accounts = SqlDelightAccountRepository(database)
+        accounts.create(Account("account", "现金", AccountType.CASH, "wallet", balance = Money(100), includeInTotalAssets = true))
+
+        accounts.update(Account("account", "备用金", AccountType.CASH, "banknote", balance = Money(350), includeInTotalAssets = true))
+
+        val account = accounts.activeAccounts().single()
+        assertEquals("备用金", account.name)
+        assertEquals(Money(350), account.balance)
+        assertEquals(2, database.backupQueries.allAccountBalanceRecordsForBackup().executeAsList().count { it.account_id == "account" })
+    }
+
+    @Test
+    fun deletingCategoryArchivesRulesThatReferenceIt() = runBlocking {
+        val database = createJvmDatabase()
+        database.ledgerQueries.insertLedger("ledger", "日常", null, 1, 1)
+        val categories = SqlDelightCategoryRepository(database)
+        val rules = SqlDelightRuleRepository(database)
+        categories.create(Category("food", "ledger", null, "餐饮", "utensils", TransactionType.EXPENSE))
+        rules.create(
+            Rule("rule", "ledger", "餐饮", RuleConditionType.NOTE_CONTAINS, "餐厅", RuleActionType.SET_CATEGORY, "food", 0),
+        )
+
+        categories.archive("food")
+
+        assertEquals(emptyList(), rules.activeRules("ledger"))
     }
 }

@@ -68,3 +68,21 @@ extension View {
         #endif
     }
 }
+
+struct SelectablePillButtonStyle: ButtonStyle {
+    @Environment(\.appThemeColor) private var themeColor
+    @Environment(\.appThemeSelectionForeground) private var selectedForeground
+    let selected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(selected ? selectedForeground : Color.primary)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 34)
+            .background(
+                selected ? themeColor.opacity(configuration.isPressed ? 0.78 : 1) : Color.secondary.opacity(configuration.isPressed ? 0.16 : 0.09),
+                in: Capsule()
+            )
+    }
+}

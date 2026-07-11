@@ -17,7 +17,7 @@ CREATE TABLE transaction_record (
 
 CREATE INDEX transaction_record_ledger_occurred_at ON transaction_record(ledger_id, occurred_at);
 CREATE UNIQUE INDEX transaction_record_external_order ON transaction_record(external_source, external_id)
-WHERE external_source IS NOT NULL AND external_id IS NOT NULL;
+WHERE external_source IS NOT NULL AND external_id IS NOT NULL AND deleted_at IS NULL;
 
 insertTransaction:
 INSERT INTO transaction_record(
@@ -67,6 +67,14 @@ WHERE ledger_id = :ledger_id
   AND occurred_at < :occurred_at_end
   AND deleted_at IS NULL;
 
+accountBalanceDeltasForLedger:
+SELECT
+    account_id,
+    COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount_minor ELSE -amount_minor END), 0) AS balance_delta
+FROM transaction_record
+WHERE ledger_id = :ledger_id AND deleted_at IS NULL
+GROUP BY account_id;
+
 transactionsForLedger:
 SELECT * FROM transaction_record
 WHERE ledger_id = :ledger_id AND deleted_at IS NULL
@@ -86,7 +94,8 @@ SELECT
     transaction_record.type,
     transaction_record.occurred_at,
     transaction_record.note,
-    transaction_record.is_excluded
+    transaction_record.is_excluded,
+    transaction_record.external_source
 FROM transaction_record
 JOIN ledger ON ledger.id = transaction_record.ledger_id
 JOIN account ON account.id = transaction_record.account_id
@@ -114,7 +123,8 @@ SELECT
     transaction_record.type,
     transaction_record.occurred_at,
     transaction_record.note,
-    transaction_record.is_excluded
+    transaction_record.is_excluded,
+    transaction_record.external_source
 FROM transaction_record
 JOIN ledger ON ledger.id = transaction_record.ledger_id
 JOIN account ON account.id = transaction_record.account_id

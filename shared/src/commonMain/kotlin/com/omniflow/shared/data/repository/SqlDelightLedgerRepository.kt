@@ -9,6 +9,9 @@ import com.omniflow.shared.domain.repository.LedgerRepository
 import com.omniflow.shared.domain.util.UuidGenerator
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.toLocalDateTime
 
 class SqlDelightLedgerRepository(
     private val database: OmniFlowDatabase,
@@ -61,6 +64,21 @@ class SqlDelightLedgerRepository(
     override suspend fun archive(ledgerId: LedgerId) {
         val timestamp = now().toEpochMilliseconds()
         database.transaction {
+            database.transactionQueries.accountBalanceDeltasForLedger(ledgerId).executeAsList().forEach { row ->
+                val delta = -row.balance_delta
+                if (delta != 0L) {
+                    database.accountQueries.updateBalance(delta, timestamp, row.account_id)
+                    val balance = database.accountQueries.accountBalance(row.account_id).executeAsOne()
+                    database.accountQueries.insertAccountBalanceRecord(
+                        id = ids.next(),
+                        account_id = row.account_id,
+                        date = dayStart(timestamp),
+                        balance_minor = balance,
+                        delta_minor = delta,
+                        created_at = timestamp,
+                    )
+                }
+            }
             database.ledgerQueries.archiveLedger(timestamp, ledgerId)
             database.ledgerQueries.archiveCategoriesForLedger(timestamp, ledgerId)
             database.ledgerQueries.archiveTagsForLedger(timestamp, ledgerId)
@@ -93,4 +111,10 @@ class SqlDelightLedgerRepository(
             updated_at = now().toEpochMilliseconds(),
         )
     }
+
+    private fun dayStart(timestamp: Long): Long = Instant.fromEpochMilliseconds(timestamp)
+        .toLocalDateTime(TimeZone.currentSystemDefault())
+        .date
+        .atStartOfDayIn(TimeZone.currentSystemDefault())
+        .toEpochMilliseconds()
 }

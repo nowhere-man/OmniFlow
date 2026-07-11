@@ -42,6 +42,9 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.toLocalDateTime
 import kotlin.math.max
 
 class SqlDelightImportWorkflow(
@@ -203,13 +206,20 @@ class SqlDelightImportWorkflow(
         if (source != null && raw.externalId != null && dedupe.hasExternalId(source, raw.externalId)) {
             return ImportDuplicateStatus.CONFIRMED
         }
-        val windowMilliseconds = if (raw.format == ImportFormat.CCB) DAY_MILLISECONDS else TWO_HOURS_MILLISECONDS
         val instant = raw.occurredAt.toEpochMilliseconds()
+        val (start, end) = if (raw.format == ImportFormat.CCB) {
+            val startOfDay = raw.occurredAt.toLocalDateTime(CHINA_TIME_ZONE).date
+                .atStartOfDayIn(CHINA_TIME_ZONE)
+                .toEpochMilliseconds()
+            startOfDay to startOfDay + DAY_MILLISECONDS
+        } else {
+            max(0L, instant - TWO_HOURS_MILLISECONDS) to instant + TWO_HOURS_MILLISECONDS + 1
+        }
         return if (dedupe.likelyDuplicate(
                 ledgerId = ledgerId,
                 amount = raw.amount,
-                occurredAtStart = max(0L, instant - windowMilliseconds),
-                occurredAtEnd = instant + windowMilliseconds + 1,
+                occurredAtStart = start,
+                occurredAtEnd = end,
                 note = raw.note,
             )
         ) {
@@ -266,5 +276,6 @@ class SqlDelightImportWorkflow(
     private companion object {
         const val TWO_HOURS_MILLISECONDS = 2 * 60 * 60 * 1000L
         const val DAY_MILLISECONDS = 24 * 60 * 60 * 1000L
+        val CHINA_TIME_ZONE: TimeZone = TimeZone.of("Asia/Shanghai")
     }
 }

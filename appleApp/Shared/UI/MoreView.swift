@@ -10,13 +10,13 @@ struct MoreView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("净资产").font(.caption.weight(.medium))
                     Text(store.accounts.filter(\.includeInTotalAssets).map(\.balanceMinor).reduce(0, +).rmb).font(.largeTitle.bold())
-                    Label(store.backups.isEmpty ? "尚未同步" : "最近同步 \(store.backups.first?.createdAt ?? "")", systemImage: "arrow.triangle.2.circlepath")
+                    Label(syncStatus, systemImage: "arrow.triangle.2.circlepath")
                         .font(.caption)
                 }
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
-                .liquidGlassSurface(cornerRadius: 18, tint: .accentColor)
+                .liquidGlassSurface(cornerRadius: 18)
                 ModuleSection(title: "数据", modules: [("数据管理", "arrow.triangle.2.circlepath"), ("导入", "square.and.arrow.down"), ("导出", "square.and.arrow.up"), ("设置", "gearshape")])
                 ModuleSection(title: "账本与账户", modules: [("账本", "books.vertical"), ("账户", "wallet.pass"), ("资产", "chart.pie"), ("分类管理", "square.grid.2x2"), ("标签管理", "tag")])
                 ModuleSection(title: "自动化", modules: [("规则", "list.bullet.rectangle"), ("提醒", "bell")])
@@ -25,6 +25,15 @@ struct MoreView: View {
         }
         .navigationTitle("更多")
         .onAppear(perform: store.loadBackups)
+    }
+
+    private var syncStatus: String {
+        switch store.syncPhase {
+        case "RUNNING": return "正在同步 \(Int((store.syncProgress ?? 0) * 100))%"
+        case "SUCCESS": return "最近同步 \(store.syncLastBackupAt ?? "刚刚")"
+        case "ERROR": return store.syncError ?? "同步失败"
+        default: return store.backups.isEmpty ? "尚未同步" : "最近同步 \(store.backups.first?.createdAt ?? "")"
+        }
     }
 }
 
@@ -43,10 +52,12 @@ private struct ModuleSection: View {
                                 .frame(width: 24)
                                 .foregroundStyle(.tint)
                             Text(module.0).foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
                         }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 14)
-                            .padding(.vertical, 12)
+                            .padding(.vertical, 14)
                     }
                     .buttonStyle(.plain)
                     if module.0 != modules.last?.0 { Divider() }
@@ -57,7 +68,7 @@ private struct ModuleSection: View {
     }
 }
 
-private struct DataManagementView: View {
+struct DataManagementView: View {
     @EnvironmentObject private var store: AppStore
     @AppStorage("syncTarget") private var syncTarget = "ICLOUD"
     @AppStorage("webdav.endpoint") private var endpoint = ""
@@ -68,6 +79,17 @@ private struct DataManagementView: View {
     var body: some View {
         Form {
             Section("全量备份") {
+                if store.syncPhase == "RUNNING" {
+                    ProgressView(value: store.syncProgress ?? 0) {
+                        Text("正在同步")
+                    }
+                } else if store.syncPhase == "ERROR" {
+                    Label(store.syncError ?? "同步失败", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                } else if let last = store.syncLastBackupAt {
+                    Label("最近备份 \(last)", systemImage: "checkmark.icloud")
+                        .foregroundStyle(.secondary)
+                }
                 Picker("同步目标", selection: $syncTarget) {
                     Text("iCloud").tag("ICLOUD")
                     Text("WebDAV").tag("WEBDAV")
@@ -83,6 +105,7 @@ private struct DataManagementView: View {
                     if syncTarget == "WEBDAV" { store.configureWebDav(endpoint: endpoint, username: username, password: password) }
                     store.syncNow(target: syncTarget, retention: retention)
                 }
+                .disabled(store.syncPhase == "RUNNING")
                 Button("刷新备份列表", action: store.loadBackups)
                 ForEach(store.backups) { backup in
                     HStack {
@@ -191,7 +214,14 @@ private struct AssetView: View {
     @EnvironmentObject private var store: AppStore
     var body: some View {
         List {
-            Section("净资产") { Text(store.accounts.filter(\.includeInTotalAssets).map(\.balanceMinor).reduce(0, +).rmb).font(.title.bold()) }
+            let included = store.accounts.filter(\.includeInTotalAssets)
+            let assets = included.map(\.balanceMinor).filter { $0 > 0 }.reduce(0, +)
+            let liabilities = included.map(\.balanceMinor).filter { $0 < 0 }.reduce(0) { $0 - $1 }
+            Section("资产概览") {
+                HStack { Text("资产"); Spacer(); Text(assets.rmb) }
+                HStack { Text("负债"); Spacer(); Text(liabilities.rmb) }
+                HStack { Text("净资产").fontWeight(.semibold); Spacer(); Text((assets - liabilities).rmb).font(.title3.bold()) }
+            }
             Section { NavigationLink("管理账户") { AccountManagementView() } }
             Section("账户") {
                 ForEach(store.accounts.filter(\.includeInTotalAssets)) { account in
@@ -295,11 +325,17 @@ private struct RuleManagementView: View {
                         Text("\(rule.conditionValue) → 分类").font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button("上移") { store.moveRule(rule.id, offset: -1) }.disabled(index == 0)
-                    Button("下移") { store.moveRule(rule.id, offset: 1) }.disabled(index == ordered.count - 1)
-                    Button("编辑") { editing = rule; showingEditor = true }
-                    Button("删除", role: .destructive) { store.deleteRule(rule.id) }
+                    Menu {
+                        Button("上移") { store.moveRule(rule.id, offset: -1) }.disabled(index == 0)
+                        Button("下移") { store.moveRule(rule.id, offset: 1) }.disabled(index == ordered.count - 1)
+                        Divider()
+                        Button("编辑") { editing = rule; showingEditor = true }
+                        Button("删除", role: .destructive) { store.deleteRule(rule.id) }
+                    } label: {
+                        Image(systemName: "ellipsis.circle").font(.title3)
+                    }
                 }
+                .padding(.vertical, 4)
             }
         }
         .sheet(isPresented: $showingEditor) { RuleEditor(rule: editing) { name, conditionType, conditionValue, actionType, actionValue, priority in
@@ -500,13 +536,22 @@ private struct ManagementRow: View {
     var auxiliaryTitle: String? = nil
     var auxiliary: (() -> Void)? = nil
     var body: some View {
-        HStack {
-            VStack(alignment: .leading) { Text(title); if !subtitle.isEmpty { Text(subtitle).font(.caption).foregroundStyle(.secondary) } }
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).fontWeight(.medium)
+                if !subtitle.isEmpty { Text(subtitle).font(.caption).foregroundStyle(.secondary) }
+            }
             Spacer()
-            if let auxiliaryTitle, let auxiliary { Button(auxiliaryTitle, action: auxiliary) }
-            Button("编辑", action: edit)
-            Button("删除", role: .destructive, action: delete)
+            Menu {
+                if let auxiliaryTitle, let auxiliary { Button(auxiliaryTitle, action: auxiliary) }
+                Button("编辑", action: edit)
+                Button("删除", role: .destructive, action: delete)
+            } label: {
+                Image(systemName: "ellipsis.circle").font(.title3)
+            }
         }
+        .padding(.vertical, 5)
+        .contentShape(Rectangle())
     }
 }
 
@@ -551,7 +596,7 @@ private struct AccountEditor: View {
     let save: (String, Int64, String, String, String?, String?, Bool) -> Void
     init(account: AccountUI?, save: @escaping (String, Int64, String, String, String?, String?, Bool) -> Void) {
         _name = State(initialValue: account?.name ?? "")
-        _balance = State(initialValue: account.map { String(Double($0.balanceMinor) / 100) } ?? "0")
+        _balance = State(initialValue: account.map { NSDecimalNumber(decimal: Decimal($0.balanceMinor) / 100).stringValue } ?? "0")
         _type = State(initialValue: account?.type ?? "CASH")
         _iconKey = State(initialValue: account?.iconKey ?? "wallet-cards")
         _cardNumber = State(initialValue: account?.cardNumber ?? "")
@@ -577,7 +622,7 @@ private struct AccountEditor: View {
             Button("保存") {
                 save(
                     name,
-                    Int64((Double(balance) ?? 0) * 100),
+                    balance.moneyMinor ?? 0,
                     type,
                     iconKey,
                     cardNumber.isEmpty ? nil : cardNumber,
@@ -642,6 +687,10 @@ private struct CategoryIconPicker: View {
 }
 
 private struct CategoryIconOptionButton: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.appThemeColor) private var themeColor
+    @Environment(\.appThemeSelectionForeground) private var selectedForeground
+    @EnvironmentObject private var store: AppStore
     let option: CategoryIconOptionUI
     let selected: Bool
     let action: () -> Void
@@ -649,15 +698,24 @@ private struct CategoryIconOptionButton: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 3) {
-                SVGIconView(key: categoryIconAssetKey(option.key), size: 34)
+                SVGIconView(
+                    key: categoryIconAssetKey(option.key),
+                    size: 34,
+                    tint: selected
+                        ? (AppThemeColor(rawValue: store.themeColor) ?? .lavender).selectionCSSColor(for: colorScheme)
+                        : (AppThemeColor(rawValue: store.themeColor) ?? .lavender).cssColor(for: colorScheme)
+                )
                 Text(option.label).font(.caption2).lineLimit(1)
             }
             .frame(maxWidth: .infinity, minHeight: 58)
-            .overlay { RoundedRectangle(cornerRadius: 10).stroke(selected ? Color.accentColor : .clear, lineWidth: 1.5) }
+            .foregroundStyle(selected ? selectedForeground : Color.primary)
+            .background(selected ? themeColor : Color.clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: 10).stroke(selected ? Color.clear : Color.secondary.opacity(0.15), lineWidth: 1) }
         }
         .buttonStyle(.plain)
-        .liquidGlassSurface(cornerRadius: 10, interactive: true, tint: selected ? .accentColor : nil)
+        .liquidGlassSurface(cornerRadius: 10, interactive: true)
         .accessibilityLabel(option.label)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
@@ -732,7 +790,7 @@ private struct ReminderEditor: View {
     init(reminder: ReminderUI?, save: @escaping (String, String, Int64?, String, Int?, Int?, Int?, Int?, Bool) -> Void) {
         _name = State(initialValue: reminder?.name ?? "")
         _type = State(initialValue: reminder?.type.contains("SUBSCRIPTION") == true ? "SUBSCRIPTION" : "REPAYMENT")
-        _amount = State(initialValue: reminder?.amountMinor.map { String(Double($0) / 100) } ?? "")
+        _amount = State(initialValue: reminder?.amountMinor.map { NSDecimalNumber(decimal: Decimal($0) / 100).stringValue } ?? "")
         _schedule = State(initialValue: reminder?.scheduleKind.components(separatedBy: ".").last ?? "FIXED_REPAYMENT_DAY")
         _day = State(initialValue: reminder?.dayOfMonth ?? 1)
         _daysAfter = State(initialValue: reminder?.daysAfter ?? 7)
@@ -770,7 +828,7 @@ private struct ReminderEditor: View {
             }
             Toggle("暂停", isOn: $paused)
             Button("保存") {
-                let amountMinor = Double(amount).map { Int64($0 * 100) }
+                let amountMinor = amount.isEmpty ? nil : amount.moneyMinor
                 save(
                     name,
                     type,

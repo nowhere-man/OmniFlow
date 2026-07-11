@@ -25,10 +25,16 @@ class SqlDelightTransactionDedupeRepository(
             amount_minor = amount.minor,
             occurred_at_start = occurredAtStart,
             occurred_at_end = occurredAtEnd,
-        ).executeAsList().any { candidate -> normalize(candidate.note) == normalizedNote }
+        ).executeAsList().any { candidate -> notesMatch(normalizedNote, normalize(candidate.note)) }
     }
 
     private fun normalize(value: String?): String = value.orEmpty()
         .lowercase()
         .filterNot(Char::isWhitespace)
+
+    private fun notesMatch(first: String, second: String): Boolean = when {
+        first == second -> true
+        minOf(first.length, second.length) < 4 -> false
+        else -> first.contains(second) || second.contains(first)
+    }
 }

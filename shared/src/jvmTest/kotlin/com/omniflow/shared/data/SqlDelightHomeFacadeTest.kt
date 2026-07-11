@@ -61,6 +61,27 @@ class SqlDelightHomeFacadeTest {
         assertEquals(Money.Zero, state.summary.incomeTotal)
     }
 
+    @Test
+    fun excludedTransactionsDoNotChangeDayGroupTotals() = runBlocking {
+        val database = createJvmDatabase()
+        seed(database)
+        database.transactionQueries.insertTransaction(
+            "excluded", "ledger", "account", "expense", 300, "EXPENSE", 1_600,
+            "不计入统计", 1, null, null, 1, 1,
+        )
+
+        val state = SqlDelightHomeFacade(database).observeHome(
+            HomeQuery(
+                scope = LedgerScope.All,
+                month = DateRange(Instant.fromEpochMilliseconds(1_000), Instant.fromEpochMilliseconds(4_000)),
+                calendarFilter = CalendarTransactionFilter.ALL,
+            ),
+        ).first().getOrThrow()
+
+        assertEquals(Money(500), state.groups.single().expenseTotal)
+        assertEquals(setOf("expense-transaction", "income-transaction"), state.groups.single().items.map { it.id }.toSet())
+    }
+
     private fun seed(database: com.omniflow.shared.db.OmniFlowDatabase) {
         database.ledgerQueries.insertLedger("ledger", "账本", null, 1, 1)
         database.accountQueries.insertAccount(

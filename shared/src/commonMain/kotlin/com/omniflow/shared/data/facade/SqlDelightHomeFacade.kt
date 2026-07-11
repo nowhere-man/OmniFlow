@@ -17,6 +17,7 @@ import com.omniflow.shared.domain.model.TransactionDetailQuery
 import com.omniflow.shared.domain.model.TransactionDetailState
 import com.omniflow.shared.domain.model.TransactionListItem
 import com.omniflow.shared.domain.model.TransactionSummary
+import com.omniflow.shared.domain.model.TransactionSource
 import com.omniflow.shared.domain.model.TransactionType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -76,7 +77,7 @@ class SqlDelightHomeFacade(
         .asSequence()
         .filterNot(TransactionListItem::isExcluded)
         .filter { filter == CalendarTransactionFilter.ALL || it.type.name == filter.name }
-        .groupBy { it.occurredAt.toLocalDateTime(TimeZone.of("Asia/Shanghai")).date }
+        .groupBy { it.occurredAt.toLocalDateTime(TimeZone.currentSystemDefault()).date }
         .map { (date, entries) ->
             CalendarDaySummary(
                 date = date,
@@ -90,7 +91,8 @@ class SqlDelightHomeFacade(
         .toList()
 
     private fun groups(items: List<TransactionListItem>): List<DayTransactionGroup> = items
-        .groupBy { it.occurredAt.toLocalDateTime(TimeZone.of("Asia/Shanghai")).date }
+        .filterNot(TransactionListItem::isExcluded)
+        .groupBy { it.occurredAt.toLocalDateTime(TimeZone.currentSystemDefault()).date }
         .map { (date, entries) ->
             DayTransactionGroup(
                 date = date,
@@ -112,12 +114,13 @@ class SqlDelightHomeFacade(
         categoryId = row.category_id,
         categoryName = row.category_name,
         primaryCategoryName = row.primary_category_name,
-        categoryIconKey = row.category_icon_key,
+        categoryIconKey = row.primary_category_icon_key,
         amount = Money(row.amount_minor),
         type = TransactionType.valueOf(row.type),
         occurredAt = Instant.fromEpochMilliseconds(row.occurred_at),
         note = row.note,
         isExcluded = row.is_excluded != 0L,
+        source = row.external_source?.let(TransactionSource::valueOf),
     )
 
     private fun LedgerScope.ledgerIdOrNull(): String? = when (this) {

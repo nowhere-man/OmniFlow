@@ -3,6 +3,7 @@ import SwiftUI
 struct SearchView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.appThemeColor) private var themeColor
 
     var body: some View {
         ScrollView {
@@ -155,7 +156,7 @@ struct SearchView: View {
                     tint: (AppThemeColor(rawValue: store.themeColor) ?? .lavender).cssColor(for: colorScheme)
                 )
                     .frame(width: 44, height: 44)
-                    .liquidGlassSurface(cornerRadius: 13, tint: .accentColor)
+                    .liquidGlassSurface(cornerRadius: 13)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(item.categoryDisplayName).fontWeight(.semibold)
                     Text("\(item.ledgerName) · \(item.accountName)").font(.caption).foregroundStyle(.secondary)
@@ -167,7 +168,7 @@ struct SearchView: View {
                 Spacer()
                 Text(item.amountMinor.rmb)
                     .fontWeight(.bold)
-                    .foregroundStyle(item.type == .expense ? Color.red : Color.accentColor)
+                    .foregroundStyle(item.type == .expense ? Color.red : themeColor)
             }
             .padding(12)
             .contentShape(Rectangle())

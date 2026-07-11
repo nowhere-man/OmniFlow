@@ -385,6 +385,7 @@ private fun AppLockGate(enabled: Boolean, content: @Composable () -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
     var locked by rememberSaveable(enabled) { mutableStateOf(enabled) }
     var authInProgress by remember { mutableStateOf(false) }
+    var authError by remember { mutableStateOf<String?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         authInProgress = false
         locked = result.resultCode != Activity.RESULT_OK
@@ -392,7 +393,8 @@ private fun AppLockGate(enabled: Boolean, content: @Composable () -> Unit) {
     fun requestUnlock() {
         val manager = context.getSystemService(KeyguardManager::class.java)
         val intent = manager.createConfirmDeviceCredentialIntent("解锁 OmniFlow", "请验证设备凭据")
-        if (intent == null) locked = false else {
+        if (intent == null) authError = "设备未设置锁屏密码，无法解锁应用" else {
+            authError = null
             authInProgress = true
             launcher.launch(intent)
         }
@@ -412,6 +414,7 @@ private fun AppLockGate(enabled: Boolean, content: @Composable () -> Unit) {
         Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("OmniFlow 已锁定", style = MaterialTheme.typography.headlineSmall)
+                authError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Button(onClick = ::requestUnlock) { Text("解锁") }
             }
         }

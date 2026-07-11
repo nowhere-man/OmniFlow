@@ -33,6 +33,7 @@ class SqlDelightSearchAnalyticsTest {
         val search = SqlDelightSearchTransactionsUseCase(database)(TransactionSearchQuery(keyword = "工作")).getOrThrow()
         assertEquals(listOf("expense"), search.items.map { it.transaction.id })
         assertEquals(Money(500), search.summary.expenseTotal)
+        assertEquals("utensils", search.items.single().transaction.categoryIconKey)
 
         val dashboard = SqlDelightAnalyticsFacade(database).observeDashboard(
             AnalyticsQuery(
@@ -43,6 +44,7 @@ class SqlDelightSearchAnalyticsTest {
         assertEquals(Money(500), dashboard.summary.expenseTotal)
         assertEquals(Money(1_000), dashboard.summary.incomeTotal)
         assertEquals(listOf("expense"), dashboard.ranking.map { it.transaction.id })
+        assertEquals("utensils", dashboard.ranking.single().transaction.categoryIconKey)
         assertEquals(listOf("account"), dashboard.accountAssets.map { it.accountId })
 
         val drillDown = SqlDelightAnalyticsFacade(database).observeDashboard(

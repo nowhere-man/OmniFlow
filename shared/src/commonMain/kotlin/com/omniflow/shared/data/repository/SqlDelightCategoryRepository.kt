@@ -89,7 +89,12 @@ class SqlDelightCategoryRepository(
         require(database.categoryQueries.activeChildCategoryId(categoryId).executeAsOneOrNull() == null) {
             "一级分类下仍有二级分类"
         }
-        database.categoryQueries.archiveCategory(now().toEpochMilliseconds(), categoryId)
+        val timestamp = now().toEpochMilliseconds()
+        database.transaction {
+            database.ruleQueries.archiveRulesForCategory(timestamp, categoryId)
+            database.categoryMemoryQueries.deleteCategoryMemoriesForCategory(categoryId)
+            database.categoryQueries.archiveCategory(timestamp, categoryId)
+        }
     }
 
     private fun validateCategory(category: Category) {

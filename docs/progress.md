@@ -1,6 +1,6 @@
 # OmniFlow 实现进度
 
-更新时间：2026-07-11
+更新时间：2026-07-12
 
 本文档记录当前工作区的实际实现状态；需求与验收范围仍以 `docs/1.Requirements.md`、`docs/2.Architecture.md`、`docs/3.TechDesign.md` 和 `docs/4.Goal.md` 为准。
 
@@ -8,8 +8,8 @@
 
 - 文档定义的首版共享业务、Android、iOS 和 macOS 源码功能已实现。
 - Android Debug APK 已成功生成。
-- Apple 共享层与 Swift 源码均通过本机可执行的编译检查；最终 framework 链接和 App 构建仍受本机未安装/选择完整 Xcode 限制。
-- 最终规范与需求双轴复审没有剩余的具体阻塞项。
+- Apple 共享层已通过 iOS Simulator 与 macOS ARM64 Kotlin/Native 源编译，Swift 源码通过语法解析；最终 framework 链接和 App 构建仍受本机未安装完整 Xcode 限制。
+- v0.2.1 修复了账本删除余额、备份校验、导入来源保留、软删除订单去重、统计口径和 Apple UI 一致性问题。
 
 ## 已实现范围
 
@@ -44,10 +44,11 @@
 - 通过：`./gradlew :shared:jvmTest`。
 - 通过：`./gradlew :androidApp:compileDebugKotlin :androidApp:assembleDebug :androidApp:lintDebug`。
 - 通过：`./gradlew :shared:compileKotlinMacosX64`。
-- 通过：Swift 5.7、macOS 13 目标的全部 Swift 源码类型检查。
+- 通过：Swift 5.7 全部 Swift 源码语法解析。
 - 通过：iOS/macOS plist、entitlement 和 Xcode project `plutil` 校验。
 - 通过：`git diff --check` 与未实现标记扫描。
 - Android APK：`androidApp/build/outputs/apk/debug/androidApp-debug.apk`。
+- SideStore Source：`sidestore-source.json`。
 
 ## 环境限制
 

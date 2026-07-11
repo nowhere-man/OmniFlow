@@ -134,7 +134,6 @@ private fun AccountManagement(state: MoreUiState, viewModel: OmniFlowViewModel) 
     if (showNew || editing != null) {
         AccountDialog(editing, onDismiss = { showNew = false; editing = null }) { name, type, icon, card, note, balance, included ->
             viewModel.saveAccount(editing?.id, name, type, icon, card, note, balance, included)
-            if (editing != null && balance != editing!!.balance) viewModel.calibrateAccount(editing!!.id, balance)
             showNew = false
             editing = null
         }

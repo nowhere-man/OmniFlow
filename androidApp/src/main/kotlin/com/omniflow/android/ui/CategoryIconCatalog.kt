@@ -2,7 +2,7 @@ package com.omniflow.android.ui
 
 internal data class CategoryIconOption(val key: String, val label: String)
 
-internal val CategoryIconOptions = listOf(
+private val FlatCategoryIconOptions = listOf(
     CategoryIconOption("utensils", "餐饮"),
     CategoryIconOption("hot-beverage", "饮品"),
     CategoryIconOption("bread", "面包"),
@@ -54,6 +54,10 @@ internal val CategoryIconOptions = listOf(
     CategoryIconOption("trophy", "奖金"),
     CategoryIconOption("gift", "礼物"),
 )
+
+internal val CategoryIconOptions = FlatCategoryIconOptions + FlatCategoryIconOptions.map {
+    CategoryIconOption("fluent-${it.key}", "彩·${it.label}")
+}
 
 private val categoryIconKeys = CategoryIconOptions.mapTo(hashSetOf(), CategoryIconOption::key)
 

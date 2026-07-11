@@ -106,6 +106,7 @@ class AppleWebDavSyncAdapter : SyncAdapter {
         ?.trim()
         ?.trimEnd('/')
         ?.takeIf(String::isNotEmpty)
+        ?.also { require(it.startsWith("https://")) { "WebDAV 地址必须使用 HTTPS" } }
         ?: error("请先填写 WebDAV 服务器目录")
 
     private fun directoryUrl() = "${endpoint()}/backups/"

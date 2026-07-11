@@ -4,7 +4,8 @@ import SwiftUI
 struct AnalyticsView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.colorScheme) private var colorScheme
-    @State private var mode = RangeMode.month
+    @Environment(\.appThemeColor) private var themeColor
+    @State private var mode = RangeMode.week
     @State private var anchor = Date()
     @State private var customStart = Date()
     @State private var customEnd = Date()
@@ -151,8 +152,9 @@ struct AnalyticsView: View {
                             HStack { Text(tag.name); Spacer(); Text("支出 \(tag.expense.rmb) · 收入 \(tag.income.rmb)") }
                         }
                     }
-                    AnalyticsCard(title: "账户资产") {
+                    AnalyticsCard(title: "全局实时资产") {
                         let summary = store.analyticsAccountSummary
+                        Text("不随当前账本和统计时间范围变化").font(.caption).foregroundStyle(.secondary)
                         Text("净资产 \((summary.assets - summary.liabilities).rmb) · 资产 \(summary.assets.rmb) · 负债 \(summary.liabilities.rmb)")
                         ForEach(store.analyticsAccountAssets) { account in
                             HStack { Text(account.name); Spacer(); Text(account.balance.rmb) }
@@ -281,9 +283,10 @@ private struct AnalyticsCard<Content: View>: View {
     }
 }
 
-private let analyticsPalette: [Color] = [.accentColor, .orange, .cyan, .purple, .pink, .green, .indigo]
+private let analyticsPalette: [Color] = [.purple, .orange, .teal, .pink, .green, .indigo, .brown]
 
 private struct TrendChart: View {
+    @Environment(\.appThemeColor) private var themeColor
     let points: [AnalyticsPointUI]
     let showIncome: Bool
     let showExpense: Bool
@@ -296,7 +299,7 @@ private struct TrendChart: View {
                         x: .value("日期", point.label),
                         y: .value("收入", Double(point.income) / 100)
                     )
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(themeColor)
                 }
                 if showExpense {
                     BarMark(
@@ -311,7 +314,7 @@ private struct TrendChart: View {
         .chartLegend(.hidden)
         .frame(height: 220)
         HStack(spacing: 16) {
-            chartLegend("收入", color: .accentColor)
+            chartLegend("收入", color: themeColor)
             chartLegend("支出", color: .red)
         }
     }
@@ -375,6 +378,7 @@ private struct ComparisonPanel: View {
 }
 
 private struct ComparisonMetricRow: View {
+    @Environment(\.appThemeColor) private var themeColor
     let metric: ComparisonMetric
 
     var body: some View {
@@ -386,7 +390,7 @@ private struct ComparisonMetricRow: View {
                 Spacer()
                 Text("\(change >= 0 ? "+" : "")\(change.rmb)")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(favorable(change) ? Color.accentColor : Color.red)
+                    .foregroundStyle(favorable(change) ? themeColor : Color.red)
             }
             comparisonBar(value: metric.current, maximum: maximum, color: .primary)
             comparisonBar(value: metric.previous, maximum: maximum, color: .secondary)

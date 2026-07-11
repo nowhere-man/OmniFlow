@@ -11,6 +11,8 @@
     <a href="https://github.com/nowhere-man/OmniFlow/releases"><img src="https://img.shields.io/github/downloads/nowhere-man/OmniFlow/total?label=downloads" alt="Total release downloads" /></a>
     <a href="https://github.com/nowhere-man/OmniFlow/commits/master"><img src="https://img.shields.io/github/last-commit/nowhere-man/OmniFlow/master" alt="Last commit" /></a>
   </p>
+
+SideStore 更新源：`https://raw.githubusercontent.com/nowhere-man/OmniFlow/master/sidestore-source.json`
 </div>
 
 ## ✨ 核心特性

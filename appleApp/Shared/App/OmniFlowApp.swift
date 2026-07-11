@@ -26,9 +26,11 @@ struct OmniFlowMacOSApp: App {
         }
 
         Settings {
-            SettingsView()
-                .environmentObject(store)
-                .appThemeTint(store.themeColor)
+            NavigationStack {
+                SettingsView()
+                    .environmentObject(store)
+                    .appThemeTint(store.themeColor)
+            }
         }
     }
 }

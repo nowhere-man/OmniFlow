@@ -54,8 +54,14 @@ struct TransactionEditorView: View {
                 .frame(maxHeight: .infinity, alignment: .bottom)
         }
         #else
-        ScrollView { editorFields.padding() }
-            .safeAreaInset(edge: .bottom, spacing: 0) { amountPanel }
+        VStack(spacing: 0) {
+            ScrollView { editorFields.padding(.horizontal, 12).padding(.top, 10) }
+            Divider()
+            amountPanel
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(.bar)
+        }
         #endif
     }
 
@@ -120,14 +126,14 @@ struct TransactionEditorView: View {
             ledgerID = item.ledgerID
             accountID = item.accountID
             categoryID = item.categoryID
-            amount = String(Double(item.amountMinor) / 100)
+            amount = NSDecimalNumber(decimal: Decimal(item.amountMinor) / 100).stringValue
             note = item.note
             date = item.date
             excluded = item.excluded
             store.selectResourceLedger(item.ledgerID)
             return
         }
-        ledgerID = store.defaultLedgerID ?? store.selectedLedgerID ?? store.resourceLedgerID ?? store.ledgers.first?.id ?? ""
+        ledgerID = store.draftTransactionLedgerID ?? store.defaultLedgerID ?? ""
         accountID = store.accounts.first(where: { $0.name == "现金" })?.id ?? store.accounts.first?.id ?? ""
         categoryID = ""
         amount = ""
@@ -195,6 +201,7 @@ struct TransactionEditorView: View {
 private struct TransactionTopBar: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.appThemeColor) private var themeColor
     @Binding var type: EntryType
     @Binding var ledgerID: String
     @Binding var accountID: String
@@ -206,8 +213,9 @@ private struct TransactionTopBar: View {
             } label: {
                 Image(systemName: "books.vertical")
                     .font(.title3.weight(.semibold))
+                    .foregroundStyle(themeColor)
                     .frame(width: 44, height: 44)
-                    .liquidGlassCircle(interactive: true, tint: .accentColor)
+                    .liquidGlassCircle(interactive: true)
             }
             .accessibilityLabel(store.ledgers.first { $0.id == ledgerID }?.name ?? "选择账本")
 
@@ -232,7 +240,7 @@ private struct TransactionTopBar: View {
                     }
                 }
                 .frame(width: 44, height: 44)
-                .liquidGlassCircle(interactive: true, tint: .accentColor)
+                .liquidGlassCircle(interactive: true)
             }
             .accessibilityLabel(store.accounts.first { $0.id == accountID }?.name ?? "选择账户")
         }
@@ -256,24 +264,15 @@ private struct TransactionCategoryPicker: View {
             if primaryCategories.isEmpty {
                 Text("选择账本后加载分类").font(.subheadline).foregroundStyle(.secondary)
             } else {
-                LazyVGrid(columns: columns, spacing: 4) {
-                    ForEach(orderedPrimaryCategories) { category in
-                        CategoryTile(category: category, selected: primaryID == category.id) { selectedID = category.id }
-                            .onDrag {
-                                draggedCategory = category
-                                return NSItemProvider(object: category.id as NSString)
-                            }
-                            .onDrop(
-                                of: ["public.text"],
-                                delegate: CategoryDropDelegate(
-                                    target: category,
-                                    ordered: $orderedPrimaryCategories,
-                                    dragged: $draggedCategory,
-                                    onReordered: onReordered
-                                )
-                            )
-                    }
+                #if os(iOS)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHGrid(rows: columns, spacing: 6) { categoryTiles }
+                        .padding(.vertical, 2)
                 }
+                .frame(height: 146)
+                #else
+                LazyVGrid(columns: columns, spacing: 4) { categoryTiles }
+                #endif
             }
             if let primary = selectedPrimary {
                 VStack(alignment: .leading, spacing: 8) {
@@ -292,13 +291,10 @@ private struct TransactionCategoryPicker: View {
                         HStack(spacing: 6) {
                             ForEach(secondaryCategories) { category in
                                 Button(category.name) { selectedID = category.id }
-                                    .buttonStyle(.bordered)
-                                    .tint(selectedID == category.id ? .accentColor : .secondary)
-                                    .controlSize(.small)
+                                    .buttonStyle(SelectablePillButtonStyle(selected: selectedID == category.id))
                             }
                             Button(action: onAddSecondary) { Image(systemName: "plus") }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
+                                .buttonStyle(SelectablePillButtonStyle(selected: false))
                         }
                     }
                 }
@@ -320,10 +316,29 @@ private struct TransactionCategoryPicker: View {
     }
     private var columns: [GridItem] {
         #if os(iOS)
-        return Array(repeating: GridItem(.flexible(), spacing: 4), count: 5)
+        return Array(repeating: GridItem(.fixed(68), spacing: 6), count: 2)
         #else
         return [GridItem(.adaptive(minimum: 76), spacing: 6)]
         #endif
+    }
+
+    @ViewBuilder private var categoryTiles: some View {
+        ForEach(orderedPrimaryCategories) { category in
+            CategoryTile(category: category, selected: primaryID == category.id) { selectedID = category.id }
+                .onDrag {
+                    draggedCategory = category
+                    return NSItemProvider(object: category.id as NSString)
+                }
+                .onDrop(
+                    of: ["public.text"],
+                    delegate: CategoryDropDelegate(
+                        target: category,
+                        ordered: $orderedPrimaryCategories,
+                        dragged: $draggedCategory,
+                        onReordered: onReordered
+                    )
+                )
+        }
     }
 }
 
@@ -352,6 +367,8 @@ private struct CategoryDropDelegate: DropDelegate {
 private struct CategoryTile: View {
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var store: AppStore
+    @Environment(\.appThemeColor) private var themeColor
+    @Environment(\.appThemeSelectionForeground) private var selectedForeground
     let category: CategoryUI
     let selected: Bool
     let action: () -> Void
@@ -362,20 +379,27 @@ private struct CategoryTile: View {
                 SVGIconView(
                     key: categoryIconAssetKey(category.iconKey),
                     size: 36,
-                    tint: (AppThemeColor(rawValue: store.themeColor) ?? .lavender).cssColor(for: colorScheme)
+                    tint: selected
+                        ? (AppThemeColor(rawValue: store.themeColor) ?? .lavender).selectionCSSColor(for: colorScheme)
+                        : (AppThemeColor(rawValue: store.themeColor) ?? .lavender).cssColor(for: colorScheme)
                 )
                 Text(category.name).font(.caption.weight(selected ? .bold : .medium)).lineLimit(1)
             }
-            .frame(maxWidth: .infinity, minHeight: 68)
-            .foregroundStyle(.primary)
-            .overlay { RoundedRectangle(cornerRadius: 14).stroke(selected ? Color.accentColor : .clear, lineWidth: 1.5) }
+            .frame(width: 68, height: 68)
+            .foregroundStyle(selected ? selectedForeground : Color.primary)
+            .background(selected ? themeColor : Color.clear, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: 14).stroke(selected ? Color.clear : Color.secondary.opacity(0.16), lineWidth: 1) }
         }
         .buttonStyle(.plain)
-        .liquidGlassSurface(cornerRadius: 14, interactive: true, tint: selected ? .accentColor : nil)
+        .liquidGlassSurface(cornerRadius: 14, interactive: true)
+        .accessibilityLabel(category.name)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
 private struct TransactionAmountPanel: View {
+    @Environment(\.appThemeColor) private var themeColor
+    @Environment(\.appThemeSelectionForeground) private var selectedForeground
     @Binding var amount: String
     let saving: Bool
     let message: String?
@@ -408,10 +432,11 @@ private struct TransactionAmountPanel: View {
             if done { onDone() } else if again { onAgain() } else { press(key) }
         }
         .frame(maxWidth: .infinity, minHeight: 44)
-        .foregroundStyle(done ? Color.white : Color.primary)
+        .foregroundStyle(done ? selectedForeground : operation ? themeColor : Color.primary)
         .font(.body.weight(done || again || operation ? .bold : .semibold))
         .buttonStyle(.plain)
-        .liquidGlassSurface(cornerRadius: 12, interactive: true, tint: done ? .accentColor : again || operation ? .accentColor.opacity(0.55) : nil)
+        .background(done ? themeColor : again ? themeColor.opacity(0.14) : Color.clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .liquidGlassSurface(cornerRadius: 12, interactive: true)
         .disabled(saving)
     }
 
@@ -454,9 +479,7 @@ private struct TransactionTagPicker: View {
                         Button(tag.name) {
                             if !selectedIDs.insert(tag.id).inserted { selectedIDs.remove(tag.id) }
                         }
-                        .buttonStyle(.bordered)
-                        .tint(selectedIDs.contains(tag.id) ? .primary : .secondary)
-                        .controlSize(.small)
+                        .buttonStyle(SelectablePillButtonStyle(selected: selectedIDs.contains(tag.id)))
                     }
                 }
             }

@@ -70,6 +70,9 @@ class SqlDelightBackupStore(
     override suspend fun restore(backup: BackupRecord) {
         val root = json.parseToJsonElement(backup.payload).jsonObject
         require(root["version"]?.jsonPrimitive?.content == "1") { "不支持的备份版本" }
+        REQUIRED_SECTIONS.forEach { name ->
+            require(root[name] is JsonArray) { "备份缺少数据段：$name" }
+        }
         val queries = database.backupQueries
         database.transaction {
             queries.clearTransactionTags()
@@ -158,3 +161,17 @@ private fun JsonArray.text(index: Int): String = get(index).jsonPrimitive.conten
 private fun JsonArray.long(index: Int): Long = text(index).toLong()
 private fun JsonArray.nullableText(index: Int): String? = get(index).takeUnless { it is JsonNull }?.jsonPrimitive?.content
 private fun JsonArray.nullableLong(index: Int): Long? = nullableText(index)?.toLong()
+
+private val REQUIRED_SECTIONS = listOf(
+    "ledgers",
+    "accounts",
+    "accountBalanceRecords",
+    "categories",
+    "tags",
+    "transactionTags",
+    "transactions",
+    "rules",
+    "categoryMemories",
+    "reminders",
+    "appPreferences",
+)

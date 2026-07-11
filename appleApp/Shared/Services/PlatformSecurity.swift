@@ -56,6 +56,14 @@ enum ReminderNotificationScheduler {
                 content.body = reminder.amountMinor.map { "提醒金额 \($0.rmb)" }
                     ?? (reminder.type.contains("REPAYMENT") ? "还款提醒" : "订阅提醒")
                 content.sound = .default
+                if reminder.scheduleKind.contains("DAYS_AFTER_STATEMENT") {
+                    daysAfterStatementDates(reminder).enumerated().forEach { index, date in
+                        let components = Calendar.current.dateComponents([.year, .month, .day, .hour], from: date)
+                        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+                        center.add(UNNotificationRequest(identifier: "omniflow-\(reminder.id)-\(index)", content: content, trigger: trigger))
+                    }
+                    return
+                }
                 guard let trigger = trigger(reminder) else { return }
                 center.add(UNNotificationRequest(identifier: "omniflow-\(reminder.id)", content: content, trigger: trigger))
             }
@@ -75,16 +83,28 @@ enum ReminderNotificationScheduler {
             components.day = reminder.dayOfMonth ?? 1
             return UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
         }
-        if kind.contains("DAYS_AFTER_STATEMENT") {
-            let calendar = Calendar(identifier: .gregorian)
-            let now = Date()
-            var date = calendar.date(bySetting: .day, value: reminder.dayOfMonth ?? 1, of: now) ?? now
-            date = calendar.date(byAdding: .day, value: reminder.daysAfter ?? 0, to: date) ?? date
-            if date <= now { date = calendar.date(byAdding: .month, value: 1, to: date) ?? date }
-            return UNCalendarNotificationTrigger(dateMatching: calendar.dateComponents([.year, .month, .day, .hour], from: date), repeats: false)
-        }
         components.day = reminder.dayOfMonth ?? 1
         return UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+    }
+
+    private static func daysAfterStatementDates(_ reminder: ReminderUI) -> [Date] {
+        let calendar = Calendar.current
+        let now = Date()
+        return (0..<12).compactMap { offset in
+            guard let month = calendar.date(byAdding: .month, value: offset, to: now),
+                  let range = calendar.range(of: .day, in: .month, for: month),
+                  let statement = calendar.date(
+                    from: DateComponents(
+                        year: calendar.component(.year, from: month),
+                        month: calendar.component(.month, from: month),
+                        day: min(reminder.dayOfMonth ?? 1, range.count),
+                        hour: 9
+                    )
+                  ),
+                  let due = calendar.date(byAdding: .day, value: reminder.daysAfter ?? 0, to: statement),
+                  due > now else { return nil }
+            return due
+        }
     }
 }
 

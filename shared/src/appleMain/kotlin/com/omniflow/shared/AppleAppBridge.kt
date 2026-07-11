@@ -33,6 +33,7 @@ import com.omniflow.shared.domain.model.RuleConditionType
 import com.omniflow.shared.domain.model.SearchResult
 import com.omniflow.shared.domain.model.Tag
 import com.omniflow.shared.domain.model.SyncConfig
+import com.omniflow.shared.domain.model.SyncState
 import com.omniflow.shared.domain.model.SyncTarget
 import com.omniflow.shared.domain.model.StatementTable
 import com.omniflow.shared.domain.model.TransactionDetailQuery
@@ -85,6 +86,13 @@ data class AppleReminderSnapshot(
     val month: Int,
     val hasMonth: Boolean,
     val paused: Boolean,
+)
+
+data class AppleSyncSnapshot(
+    val phase: String,
+    val progress: Float?,
+    val lastBackupAt: String?,
+    val errorMessage: String?,
 )
 
 class AppleAppBridge(val app: SharedApp) {
@@ -232,6 +240,20 @@ class AppleAppBridge(val app: SharedApp) {
         callback,
     )
 
+    fun watchSyncState(callback: (AppleSyncSnapshot?, String?) -> Unit) = watch(
+        app.sync.observeSyncState().map { state: SyncState ->
+            Result.success(
+                AppleSyncSnapshot(
+                    phase = state.phase.name,
+                    progress = state.progress,
+                    lastBackupAt = state.lastBackupAt?.toString(),
+                    errorMessage = state.errorMessage,
+                ),
+            )
+        },
+        callback,
+    )
+
     fun search(query: TransactionSearchQuery, callback: (SearchResult?, String?) -> Unit) {
         scope.launch {
             app.search(query).fold(
@@ -315,9 +337,10 @@ class AppleAppBridge(val app: SharedApp) {
                     ),
                 )
             } else {
+                val existing = app.getTransaction(transactionId).getOrThrow()
+                    ?: error("交易不存在或已删除")
                 app.updateTransaction(
-                    Transaction(
-                        id = transactionId,
+                    existing.copy(
                         ledgerId = ledgerId,
                         accountId = accountId,
                         categoryId = categoryId,
@@ -326,8 +349,6 @@ class AppleAppBridge(val app: SharedApp) {
                         occurredAt = Instant.fromEpochMilliseconds(occurredAtMillis),
                         note = note,
                         isExcluded = excluded,
-                        source = null,
-                        externalId = null,
                         tagIds = tagIds,
                     ),
                 )
@@ -379,7 +400,6 @@ class AppleAppBridge(val app: SharedApp) {
                 includeInTotalAssets = includeInTotalAssets,
             )
             val result = if (id == null) app.createAccount(account) else app.updateAccount(account)
-            if (result.isSuccess && id != null) app.calibrateAccount(id, Money(balanceMinor))
             callback(result.exceptionOrNull()?.message)
         }
     }

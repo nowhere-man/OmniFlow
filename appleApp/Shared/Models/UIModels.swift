@@ -29,7 +29,7 @@ struct CategoryIconOptionUI: Identifiable, Hashable {
     var id: String { key }
 }
 
-let categoryIconOptions = [
+private let flatCategoryIconOptions = [
     CategoryIconOptionUI(key: "utensils", label: "餐饮"), CategoryIconOptionUI(key: "hot-beverage", label: "饮品"),
     CategoryIconOptionUI(key: "bread", label: "面包"), CategoryIconOptionUI(key: "pizza", label: "披萨"),
     CategoryIconOptionUI(key: "hamburger", label: "快餐"), CategoryIconOptionUI(key: "cake", label: "甜点"),
@@ -56,6 +56,10 @@ let categoryIconOptions = [
     CategoryIconOptionUI(key: "briefcase-business", label: "工作"), CategoryIconOptionUI(key: "office", label: "办公"),
     CategoryIconOptionUI(key: "trophy", label: "奖金"), CategoryIconOptionUI(key: "gift", label: "礼物"),
 ]
+
+let categoryIconOptions = flatCategoryIconOptions + flatCategoryIconOptions.map {
+    CategoryIconOptionUI(key: "fluent-\($0.key)", label: "彩·\($0.label)")
+}
 
 private let categoryIconKeys = Set(categoryIconOptions.map(\.key))
 
@@ -157,10 +161,23 @@ struct TransactionUI: Identifiable, Hashable {
     var date: Date
     var note: String
     var excluded: Bool
+    var source: String?
     var tagNames: [String] = []
 
     var categoryDisplayName: String {
         primaryCategoryName == categoryName ? categoryName : "\(primaryCategoryName)-\(categoryName)"
+    }
+
+    var sourceDisplayName: String? {
+        switch source {
+        case "MANUAL": return "手动记录"
+        case "ALIPAY": return "支付宝"
+        case "WECHAT": return "微信"
+        case "JD": return "京东"
+        case "MEITUAN": return "美团"
+        case "CCB": return "建设银行"
+        default: return source
+        }
     }
 }
 
@@ -239,4 +256,11 @@ extension Int64 {
     }
 
     var wholeRmb: String { "¥\(self / 100)" }
+}
+
+extension String {
+    var moneyMinor: Int64? {
+        guard let value = Decimal(string: trimmingCharacters(in: .whitespacesAndNewlines)), value >= 0 else { return nil }
+        return NSDecimalNumber(decimal: value * 100).int64Value
+    }
 }

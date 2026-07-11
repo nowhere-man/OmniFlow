@@ -1,0 +1,4 @@
+DROP INDEX transaction_record_external_order;
+
+CREATE UNIQUE INDEX transaction_record_external_order ON transaction_record(external_source, external_id)
+WHERE external_source IS NOT NULL AND external_id IS NOT NULL AND deleted_at IS NULL;

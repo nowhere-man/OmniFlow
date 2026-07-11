@@ -35,6 +35,14 @@ enum AppThemeColor: String, CaseIterable, Identifiable {
         String(format: "#%06X", hexValue(for: scheme))
     }
 
+    func selectionForeground(for scheme: ColorScheme) -> Color {
+        self == .graphite && scheme == .dark ? .black : .white
+    }
+
+    func selectionCSSColor(for scheme: ColorScheme) -> String {
+        self == .graphite && scheme == .dark ? "#000000" : "#FFFFFF"
+    }
+
     private func hexValue(for scheme: ColorScheme) -> UInt32 {
         switch (self, scheme) {
         case (.mistBlue, .dark): return 0x9CC3E5
@@ -53,12 +61,36 @@ enum AppThemeColor: String, CaseIterable, Identifiable {
     }
 }
 
+struct AppThemeColorKey: EnvironmentKey {
+    static let defaultValue = Color(red: 0.46, green: 0.40, blue: 0.62)
+}
+
+struct AppThemeSelectionForegroundKey: EnvironmentKey {
+    static let defaultValue = Color.white
+}
+
+extension EnvironmentValues {
+    var appThemeColor: Color {
+        get { self[AppThemeColorKey.self] }
+        set { self[AppThemeColorKey.self] = newValue }
+    }
+
+    var appThemeSelectionForeground: Color {
+        get { self[AppThemeSelectionForegroundKey.self] }
+        set { self[AppThemeSelectionForegroundKey.self] = newValue }
+    }
+}
+
 struct AppThemeTintModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
     let themeColor: String
 
     func body(content: Content) -> some View {
-        content.tint((AppThemeColor(rawValue: themeColor) ?? .lavender).color(for: colorScheme))
+        let theme = AppThemeColor(rawValue: themeColor) ?? .lavender
+        content
+            .tint(theme.color(for: colorScheme))
+            .environment(\.appThemeColor, theme.color(for: colorScheme))
+            .environment(\.appThemeSelectionForeground, theme.selectionForeground(for: colorScheme))
     }
 }
 
@@ -72,42 +104,111 @@ struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
 
     var body: some View {
-        Form {
-            Toggle("应用锁", isOn: Binding(get: { store.appLockEnabled }, set: store.setAppLockEnabled))
-            Picker("界面外观", selection: Binding(get: { store.appearanceMode }, set: store.setAppearanceMode)) {
-                Text("跟随系统").tag("SYSTEM")
-                Text("浅色").tag("LIGHT")
-                Text("深色").tag("DARK")
-            }
-            VStack(alignment: .leading, spacing: 10) {
-                Text("主题色").font(.headline)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 18) {
-                        ForEach(AppThemeColor.allCases) { theme in
-                            Button { store.setThemeColor(theme.rawValue) } label: {
-                                VStack(spacing: 6) {
-                                    Circle()
-                                        .fill(theme.color(for: .light))
-                                        .frame(width: 36, height: 36)
-                                        .overlay {
-                                            Circle().stroke(store.themeColor == theme.rawValue ? Color.primary : .clear, lineWidth: 3)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                SettingsSection(title: "安全") {
+                    SettingsRow(systemImage: "lock.shield", title: "应用锁", detail: "打开应用时验证设备密码或生物识别") {
+                        Toggle("", isOn: Binding(get: { store.appLockEnabled }, set: store.setAppLockEnabled))
+                            .labelsHidden()
+                    }
+                }
+
+                SettingsSection(title: "外观") {
+                    VStack(alignment: .leading, spacing: 16) {
+                        SettingsRow(systemImage: "circle.lefthalf.filled", title: "界面外观", detail: "跟随系统或固定显示模式") {
+                            EmptyView()
+                        }
+                        Picker("界面外观", selection: Binding(get: { store.appearanceMode }, set: store.setAppearanceMode)) {
+                            Text("跟随系统").tag("SYSTEM")
+                            Text("浅色").tag("LIGHT")
+                            Text("深色").tag("DARK")
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    Divider()
+                    VStack(alignment: .leading, spacing: 14) {
+                        Label("主题色", systemImage: "paintpalette").font(.headline)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 16) {
+                                ForEach(AppThemeColor.allCases) { theme in
+                                    Button { store.setThemeColor(theme.rawValue) } label: {
+                                        VStack(spacing: 7) {
+                                            Circle()
+                                                .fill(theme.color(for: .light))
+                                                .frame(width: 32, height: 32)
+                                                .overlay {
+                                                    Circle().stroke(store.themeColor == theme.rawValue ? Color.primary : .clear, lineWidth: 2.5)
+                                                }
+                                                .padding(3)
+                                            Text(theme.label)
+                                                .font(.caption)
+                                                .foregroundStyle(.primary)
+                                                .lineLimit(1)
                                         }
-                                    Text(theme.label).font(.caption).foregroundStyle(.primary)
+                                        .frame(width: 62)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel(theme.label)
+                                    .accessibilityAddTraits(store.themeColor == theme.rawValue ? .isSelected : [])
                                 }
-                                .frame(width: 58)
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(theme.label)
                         }
                     }
                 }
+
+                SettingsSection(title: "数据") {
+                    NavigationLink { DataManagementView() } label: {
+                        SettingsRow(systemImage: "externaldrive.badge.icloud", title: "数据管理", detail: "iCloud、WebDAV、备份与恢复") {
+                            Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            Button("数据管理") { store.destination = .more }
+            .padding(20)
         }
-        .formStyle(.grouped)
+        .navigationTitle("设置")
         #if os(macOS)
-        .frame(width: 520, height: 330)
-        .padding()
+        .frame(width: 560, height: 500)
         #endif
+    }
+}
+
+private struct SettingsSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 14) { content }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .liquidGlassSurface(cornerRadius: 18)
+        }
+    }
+}
+
+private struct SettingsRow<Accessory: View>: View {
+    let systemImage: String
+    let title: String
+    let detail: String
+    @ViewBuilder let accessory: Accessory
+
+    var body: some View {
+        HStack(spacing: 13) {
+            Image(systemName: systemImage)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.tint)
+                .frame(width: 26)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).fontWeight(.medium)
+                Text(detail).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 12)
+            accessory
+        }
+        .frame(minHeight: 48)
+        .contentShape(Rectangle())
     }
 }

@@ -90,6 +90,8 @@ struct HomeView: View {
 
 private struct HomeCalendarView: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.appThemeColor) private var themeColor
+    @Environment(\.appThemeSelectionForeground) private var selectedForeground
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
 
     var body: some View {
@@ -105,12 +107,12 @@ private struct HomeCalendarView: View {
                         VStack(spacing: 2) {
                             Text("\(day)")
                                 .fontWeight(isToday ? .bold : .medium)
-                                .foregroundStyle(isToday ? Color.white : Color.primary)
+                                .foregroundStyle(isToday ? selectedForeground : Color.primary)
                                 .frame(width: 28, height: 28)
-                                .background(isToday ? Color.accentColor : .clear, in: Circle())
+                                .background(isToday ? themeColor : .clear, in: Circle())
                             if let display = summary?.displayAmount(filter: store.calendarFilter) {
                                 Text("\(display.income ? "+" : "-")\(compact(display.amount))")
-                                    .foregroundStyle(display.income ? Color.accentColor : Color.red)
+                                    .foregroundStyle(display.income ? themeColor : Color.red)
                             }
                         }
                         .font(.caption2)
@@ -302,6 +304,8 @@ struct SummaryCard: View {
 
 private struct CalendarFilterPicker: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.appThemeColor) private var themeColor
+    @Environment(\.appThemeSelectionForeground) private var selectedForeground
 
     var body: some View {
         LiquidGlassContainer(spacing: 4) {
@@ -317,11 +321,13 @@ private struct CalendarFilterPicker: View {
         Button { store.setCalendarFilter(value) } label: {
             Image(systemName: systemImage)
                 .frame(width: 34, height: 34)
-                .liquidGlassCircle(interactive: true, tint: store.calendarFilter == value ? .accentColor : nil)
+                .background(store.calendarFilter == value ? themeColor : Color.clear, in: Circle())
+                .liquidGlassCircle(interactive: true)
         }
         .buttonStyle(.plain)
-        .foregroundStyle(store.calendarFilter == value ? Color.accentColor : Color.secondary)
+        .foregroundStyle(store.calendarFilter == value ? selectedForeground : Color.secondary)
         .accessibilityLabel(label)
+        .accessibilityAddTraits(store.calendarFilter == value ? .isSelected : [])
     }
 }
 
@@ -343,6 +349,6 @@ private struct MonthlyBalanceCard: View {
         .foregroundStyle(.primary)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .liquidGlassSurface(cornerRadius: 18, tint: .accentColor)
+        .liquidGlassSurface(cornerRadius: 18)
     }
 }

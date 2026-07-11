@@ -3,8 +3,11 @@ package com.omniflow.shared.data
 import com.omniflow.shared.data.local.createJvmDatabase
 import com.omniflow.shared.data.sync.SqlDelightBackupStore
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class SqlDelightBackupStoreTest {
     @Test
@@ -44,5 +47,25 @@ class SqlDelightBackupStoreTest {
         assertEquals("会员", database.reminderQueries.activeReminders().executeAsOne().name)
         assertEquals("DARK", database.appPreferenceQueries.preference("appearance_mode").executeAsOne())
         assertEquals(3L, database.categoryQueries.activeCategory("category").executeAsOne().sort_order)
+    }
+
+    @Test
+    fun rejectsIncompleteBackupWithoutClearingLocalData() = runBlocking {
+        val database = createJvmDatabase()
+        database.ledgerQueries.insertLedger("ledger", "日常", null, 1, 1)
+        val store = SqlDelightBackupStore(database)
+
+        assertFailsWith<IllegalArgumentException> {
+            store.restore(
+                com.omniflow.shared.domain.model.BackupRecord(
+                    deviceId = "device",
+                    backupId = "broken",
+                    createdAt = kotlinx.datetime.Instant.fromEpochMilliseconds(1),
+                    payload = JsonObject(mapOf("version" to JsonPrimitive(1))).toString(),
+                ),
+            )
+        }
+
+        assertEquals("日常", database.ledgerQueries.activeLedgers().executeAsOne().name)
     }
 }

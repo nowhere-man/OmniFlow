@@ -1,0 +1,30 @@
+{
+  "name": "OmniFlow",
+  "identifier": "com.omniflow.sidestore.source",
+  "subtitle": "简洁的多端记账工具",
+  "description": "OmniFlow iOS 的 SideStore 更新源。",
+  "iconURL": "https://raw.githubusercontent.com/nowhere-man/OmniFlow/master/assets/branding/omniflow-icon.png",
+  "website": "https://github.com/nowhere-man/OmniFlow",
+  "apps": [
+    {
+      "name": "OmniFlow",
+      "bundleIdentifier": "com.omniflow.ios",
+      "developerName": "OmniFlow",
+      "subtitle": "跨平台个人记账",
+      "localizedDescription": "支持多账本、分类、统计、导入、iCloud 与 WebDAV 备份。",
+      "iconURL": "https://raw.githubusercontent.com/nowhere-man/OmniFlow/master/assets/branding/omniflow-icon.png",
+      "tintColor": "75679D",
+      "versions": [
+        {
+          "version": "0.2.1",
+          "date": "2026-07-12",
+          "localizedDescription": "修复数据一致性问题并统一 Android、iOS 与 macOS 的核心交互和视觉。",
+          "downloadURL": "https://github.com/nowhere-man/OmniFlow/releases/download/v0.2.1/OmniFlow-iOS-arm64-v0.2.1-unsigned.ipa",
+          "size": 0,
+          "minOSVersion": "16.0"
+        }
+      ]
+    }
+  ],
+  "news": []
+}

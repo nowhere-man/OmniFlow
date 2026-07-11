@@ -1116,7 +1116,7 @@ class OmniFlowViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T = OmniFlowViewModel(sharedApp) as T
 }
 
-internal val ChinaTimeZone = TimeZone.of("Asia/Shanghai")
+internal val ChinaTimeZone = TimeZone.currentSystemDefault()
 
 internal fun monthRange(now: Instant): DateRange = monthRange(now.toLocalDateTime(ChinaTimeZone).date)
 

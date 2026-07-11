@@ -44,3 +44,7 @@ WHERE id = :id AND ledger_id = :ledger_id AND deleted_at IS NULL;
 archiveRule:
 UPDATE rule SET deleted_at = :deleted_at, updated_at = :deleted_at
 WHERE id = :id AND deleted_at IS NULL;
+
+archiveRulesForCategory:
+UPDATE rule SET deleted_at = :deleted_at, updated_at = :deleted_at
+WHERE action_type = 'SET_CATEGORY' AND action_value = :category_id AND deleted_at IS NULL;

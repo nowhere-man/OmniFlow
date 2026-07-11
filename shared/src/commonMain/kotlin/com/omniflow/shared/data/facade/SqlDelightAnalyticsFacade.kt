@@ -299,12 +299,13 @@ class SqlDelightAnalyticsFacade(
         categoryId = row.category_id,
         categoryName = row.category_name,
         primaryCategoryName = row.primary_category_name,
-        categoryIconKey = row.category_icon_key,
+        categoryIconKey = row.primary_category_icon_key,
         amount = Money(row.amount_minor),
         type = TransactionType.valueOf(row.type),
         occurredAt = Instant.fromEpochMilliseconds(row.occurred_at),
         note = row.note,
         isExcluded = row.is_excluded != 0L,
+        source = row.external_source?.let(com.omniflow.shared.domain.model.TransactionSource::valueOf),
     )
 
     private fun LedgerScope.ledgerIdOrNull(): String? = when (this) {
@@ -322,7 +323,7 @@ class SqlDelightAnalyticsFacade(
     private data class AccountAnalytics(val summary: AccountSummary, val assets: List<AccountAssetItem>)
 
     private companion object {
-        val CHINA_TIME_ZONE: TimeZone = TimeZone.of("Asia/Shanghai")
+        val CHINA_TIME_ZONE: TimeZone = TimeZone.currentSystemDefault()
         const val DAY_MILLISECONDS = 24 * 60 * 60 * 1000L
         const val RANKING_LIMIT = 10
     }

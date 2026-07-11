@@ -242,8 +242,8 @@ class SqlDelightTransactionRepository(
     }
 
     private fun dayStart(timestamp: Long): Long = Instant.fromEpochMilliseconds(timestamp)
-        .toLocalDateTime(TimeZone.of("Asia/Shanghai"))
+        .toLocalDateTime(TimeZone.currentSystemDefault())
         .date
-        .atStartOfDayIn(TimeZone.of("Asia/Shanghai"))
+        .atStartOfDayIn(TimeZone.currentSystemDefault())
         .toEpochMilliseconds()
 }

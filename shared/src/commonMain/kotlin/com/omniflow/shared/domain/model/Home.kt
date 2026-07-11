@@ -36,6 +36,7 @@ data class TransactionListItem(
     val occurredAt: Instant,
     val note: String?,
     val isExcluded: Boolean,
+    val source: TransactionSource?,
 ) {
     val categoryDisplayName: String
         get() = if (primaryCategoryName == categoryName) categoryName else "$primaryCategoryName-$categoryName"

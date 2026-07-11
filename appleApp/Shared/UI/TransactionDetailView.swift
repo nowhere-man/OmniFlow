@@ -3,6 +3,7 @@ import SwiftUI
 struct TransactionDetailView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.appThemeColor) private var themeColor
     let transaction: TransactionUI
     @State private var confirmingDelete = false
     @State private var deleting = false
@@ -22,11 +23,11 @@ struct TransactionDetailView: View {
                             .font(.headline)
                         Text("\(transaction.type == .expense ? "−" : "+")\(transaction.amountMinor.rmb)")
                             .font(.largeTitle.bold().monospacedDigit())
-                            .foregroundStyle(transaction.type == .expense ? Color.red : Color.accentColor)
+                            .foregroundStyle(transaction.type == .expense ? Color.red : themeColor)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(20)
-                    .liquidGlassSurface(cornerRadius: 22, tint: .accentColor)
+                    .liquidGlassSurface(cornerRadius: 22)
 
                     VStack(spacing: 0) {
                         detailRow("金额", value: transaction.amountMinor.rmb, systemImage: "banknote")
@@ -40,6 +41,10 @@ struct TransactionDetailView: View {
                         detailRow("账本", value: transaction.ledgerName, systemImage: "books.vertical")
                         Divider()
                         detailRow("统计", value: transaction.excluded ? "不计入统计" : "计入统计", systemImage: "chart.bar")
+                        if let source = transaction.sourceDisplayName, !source.isEmpty {
+                            Divider()
+                            detailRow("来源", value: source, systemImage: "arrow.triangle.2.circlepath")
+                        }
                     }
                     .padding(.horizontal, 14)
                     .liquidGlassSurface(cornerRadius: 18)

@@ -100,7 +100,7 @@ class ReminderScheduler(private val context: Context) {
     private fun pendingFlags() = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
 
     private companion object {
-        val CHINA_ZONE: ZoneId = ZoneId.of("Asia/Shanghai")
+        val CHINA_ZONE: ZoneId = ZoneId.systemDefault()
     }
 }
 
@@ -141,5 +141,17 @@ class ReminderReceiver : BroadcastReceiver() {
 
     private companion object {
         const val CHANNEL_ID = "omniflow-reminders"
+    }
+}
+
+class ReminderBootReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        val pending = goAsync()
+        CoroutineScope(Dispatchers.Default).launch {
+            val app = context.applicationContext as OmniFlowApplication
+            app.sharedApp.reminders.observe().first().getOrNull()?.let { ReminderScheduler(context).sync(it) }
+            pending.finish()
+        }
     }
 }

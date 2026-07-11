@@ -66,6 +66,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,6 +94,9 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toLocalDateTime
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 internal enum class MorePage(val label: String, val icon: ImageVector) {
     HOME("更多", Icons.Default.Settings),
@@ -459,12 +463,17 @@ private fun DataManagementPage(
 @Composable
 private fun ImportPage(state: MoreUiState, viewModel: OmniFlowViewModel) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var ledgerId by remember(state.selectedLedgerId) { mutableStateOf(state.selectedLedgerId) }
     var selectedFormat by remember { mutableStateOf<ImportFormat?>(null) }
     val fileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null && ledgerId != null) {
-            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            if (bytes != null) viewModel.importFile(ledgerId!!, context.fileName(uri), bytes, selectedFormat)
+            scope.launch {
+                val bytes = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                }
+                if (bytes != null) viewModel.importFile(ledgerId!!, context.fileName(uri), bytes, selectedFormat)
+            }
         }
     }
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
