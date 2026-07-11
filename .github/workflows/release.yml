@@ -150,12 +150,12 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
-          APP="build/macos-derived-data/Build/Products/Release/OmniFlow-macOS.app"
+          APP="build/macos-derived-data/Build/Products/Release/OmniFlow.app"
           test -d "$APP"
 
       - name: Package DMG
         run: |
-          APP="build/macos-derived-data/Build/Products/Release/OmniFlow-macOS.app"
+          APP="build/macos-derived-data/Build/Products/Release/OmniFlow.app"
           test -d "$APP"
           STAGE="$RUNNER_TEMP/omniflow-dmg"
           VERSION="${GITHUB_REF_NAME//\//-}"

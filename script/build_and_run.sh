@@ -2,12 +2,12 @@
 set -euo pipefail
 
 MODE="${1:-run}"
-APP_NAME="OmniFlow-macOS"
+APP_NAME="OmniFlow"
 BUNDLE_ID="com.omniflow.macos"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DERIVED_DATA="$ROOT_DIR/build/apple-derived-data"
-APP_BUNDLE="$DERIVED_DATA/Build/Products/Debug/OmniFlow-macOS.app"
-APP_BINARY="$APP_BUNDLE/Contents/MacOS/OmniFlow-macOS"
+APP_BUNDLE="$DERIVED_DATA/Build/Products/Debug/OmniFlow.app"
+APP_BINARY="$APP_BUNDLE/Contents/MacOS/OmniFlow"
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 

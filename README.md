@@ -5,7 +5,12 @@
   </picture>
   <h1>OmniFlow</h1>
   <p>一款原生多端记账 App，让账单自动流入账本 📥</p>
-  <p>Android · iOS · macOS</p>
+  <p>
+    <img src="https://img.shields.io/badge/Platform-Android%20%C2%B7%20iOS%20%C2%B7%20macOS-brightgreen.svg" alt="Platform" />
+    <a href="https://github.com/nowhere-man/OmniFlow/releases/latest"><img src="https://img.shields.io/github/v/release/nowhere-man/OmniFlow?label=release&color=orange" alt="Latest release" /></a>
+    <a href="https://github.com/nowhere-man/OmniFlow/releases"><img src="https://img.shields.io/github/downloads/nowhere-man/OmniFlow/total?label=downloads" alt="Total release downloads" /></a>
+    <a href="https://github.com/nowhere-man/OmniFlow/commits/master"><img src="https://img.shields.io/github/last-commit/nowhere-man/OmniFlow/master" alt="Last commit" /></a>
+  </p>
 </div>
 
 ## ✨ 核心特性
