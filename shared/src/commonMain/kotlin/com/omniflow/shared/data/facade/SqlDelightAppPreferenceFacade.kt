@@ -10,6 +10,7 @@ import com.omniflow.shared.domain.model.AppearanceMode
 import com.omniflow.shared.domain.model.DEFAULT_BACKUP_RETENTION
 import com.omniflow.shared.domain.model.LedgerScope
 import com.omniflow.shared.domain.model.SyncTarget
+import com.omniflow.shared.domain.model.ThemeColor
 import com.omniflow.shared.domain.model.TransactionDetailDisplayMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -34,6 +35,7 @@ class SqlDelightAppPreferenceFacade(
             save(AppPreferenceKey.AnalyticsLedgerScope, encode(preferences.analyticsLedgerScope), timestamp)
             save(AppPreferenceKey.TransactionDetailDisplayMode, preferences.transactionDetailDisplayMode.name, timestamp)
             save(AppPreferenceKey.AppearanceMode, preferences.appearanceMode.name, timestamp)
+            save(AppPreferenceKey.ThemeColor, preferences.themeColor.name, timestamp)
             save(AppPreferenceKey.AppLockEnabled, preferences.appLockEnabled.toString(), timestamp)
             save(AppPreferenceKey.SyncTarget, preferences.syncTarget?.name, timestamp)
             save(AppPreferenceKey.BackupRetention, preferences.backupRetention.toString(), timestamp)
@@ -57,6 +59,9 @@ class SqlDelightAppPreferenceFacade(
         appearanceMode = values[AppPreferenceKey.AppearanceMode]
             ?.let { runCatching { AppearanceMode.valueOf(it) }.getOrNull() }
             ?: AppearanceMode.SYSTEM,
+        themeColor = values[AppPreferenceKey.ThemeColor]
+            ?.let { runCatching { ThemeColor.valueOf(it) }.getOrNull() }
+            ?: ThemeColor.GRAPHITE,
         appLockEnabled = values[AppPreferenceKey.AppLockEnabled]?.toBooleanStrictOrNull() ?: false,
         syncTarget = values[AppPreferenceKey.SyncTarget]
             ?.let { runCatching { SyncTarget.valueOf(it) }.getOrNull() },

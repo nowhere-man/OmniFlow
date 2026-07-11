@@ -46,7 +46,6 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -86,6 +85,7 @@ import com.omniflow.shared.domain.model.CalendarTransactionFilter
 import com.omniflow.shared.domain.model.DayTransactionGroup
 import com.omniflow.shared.domain.model.LedgerScope
 import com.omniflow.shared.domain.model.Money
+import com.omniflow.shared.domain.model.ThemeColor
 import com.omniflow.shared.domain.model.TransactionDetailState
 import com.omniflow.shared.domain.model.TransactionDetailDisplayMode
 import com.omniflow.shared.domain.model.TransactionListItem
@@ -126,6 +126,8 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
         AppearanceMode.LIGHT -> false
         AppearanceMode.DARK -> true
     }
+    val primaryColor = themePrimaryColor(moreState.preferences.themeColor, darkTheme)
+    val primaryContainerColor = themePrimaryContainerColor(moreState.preferences.themeColor, darkTheme)
     val context = LocalContext.current
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     LaunchedEffect(moreState.reminders) {
@@ -144,12 +146,13 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
     MaterialTheme(
         colorScheme = if (darkTheme) {
             darkColorScheme(
-                primary = Color(0xFFF5F5F5),
+                primary = primaryColor,
                 onPrimary = Color(0xFF111111),
-                primaryContainer = Color(0xFF2A2A2A),
-                onPrimaryContainer = Color(0xFFF5F5F5),
-                secondary = Color(0xFFC7C7C7),
-                secondaryContainer = Color(0xFF242424),
+                primaryContainer = primaryContainerColor,
+                onPrimaryContainer = primaryColor,
+                secondary = primaryColor,
+                secondaryContainer = primaryContainerColor,
+                onSecondaryContainer = primaryColor,
                 surface = Color(0xFF141414),
                 surfaceVariant = Color(0xFF202020),
                 background = Color(0xFF101010),
@@ -159,12 +162,13 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
             )
         } else {
             lightColorScheme(
-                primary = Color(0xFF171717),
+                primary = primaryColor,
                 onPrimary = Color.White,
-                primaryContainer = Color(0xFFE7E7E7),
-                onPrimaryContainer = Color(0xFF171717),
-                secondary = Color(0xFF626262),
-                secondaryContainer = Color(0xFFF1F1F1),
+                primaryContainer = primaryContainerColor,
+                onPrimaryContainer = primaryColor,
+                secondary = primaryColor,
+                secondaryContainer = primaryContainerColor,
+                onSecondaryContainer = primaryColor,
                 surface = Color.White,
                 surfaceVariant = Color(0xFFF5F5F5),
                 background = Color.White,
@@ -178,28 +182,19 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
         Scaffold(
             bottomBar = {
                 if (destination != MainDestination.ADD) {
-                    PrimaryNavigation(destination) {
-                        destination = it
-                        if (it == MainDestination.MORE) moreStartPage = MorePage.HOME
-                    }
-                }
-            },
-            floatingActionButton = {
-                if (destination != MainDestination.ADD) {
-                    FloatingActionButton(
-                        onClick = {
+                    PrimaryNavigation(
+                        destination = destination,
+                        onDestination = {
+                            destination = it
+                            if (it == MainDestination.MORE) moreStartPage = MorePage.HOME
+                        },
+                        onAdd = {
                             viewModel.startNewTransaction()
                             destination = MainDestination.ADD
                         },
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        shape = CircleShape,
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "新增交易")
-                    }
+                    )
                 }
             },
-            floatingActionButtonPosition = FabPosition.Center,
         ) { padding ->
             when (destination) {
                 MainDestination.HOME -> HomeScreen(
@@ -301,28 +296,60 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
     }
 }
 
+internal fun themePrimaryColor(themeColor: ThemeColor, darkTheme: Boolean): Color = when (themeColor) {
+    ThemeColor.MIST_BLUE -> Color(if (darkTheme) 0xFF9CC3E5 else 0xFF52779A)
+    ThemeColor.SAGE -> Color(if (darkTheme) 0xFF9BC8A8 else 0xFF4F765B)
+    ThemeColor.LAVENDER -> Color(if (darkTheme) 0xFFC2B5E5 else 0xFF75679D)
+    ThemeColor.SOFT_CORAL -> Color(if (darkTheme) 0xFFE7AAA4 else 0xFFA95850)
+    ThemeColor.WARM_AMBER -> Color(if (darkTheme) 0xFFD8B778 else 0xFF8A6532)
+    ThemeColor.GRAPHITE -> Color(if (darkTheme) 0xFFF5F5F5 else 0xFF171717)
+}
+
+private fun themePrimaryContainerColor(themeColor: ThemeColor, darkTheme: Boolean): Color = when (themeColor) {
+    ThemeColor.MIST_BLUE -> Color(if (darkTheme) 0xFF28445E else 0xFFDCEBF7)
+    ThemeColor.SAGE -> Color(if (darkTheme) 0xFF2D4935 else 0xFFDDECE1)
+    ThemeColor.LAVENDER -> Color(if (darkTheme) 0xFF40375D else 0xFFE9E3F5)
+    ThemeColor.SOFT_CORAL -> Color(if (darkTheme) 0xFF5E332F else 0xFFF6E2DF)
+    ThemeColor.WARM_AMBER -> Color(if (darkTheme) 0xFF523F24 else 0xFFF2E7D3)
+    ThemeColor.GRAPHITE -> Color(if (darkTheme) 0xFF2A2A2A else 0xFFE7E7E7)
+}
+
 @Composable
 private fun PrimaryNavigation(
     destination: MainDestination,
     onDestination: (MainDestination) -> Unit,
+    onAdd: () -> Unit,
 ) {
-    NavigationBar {
-        listOf(MainDestination.HOME, MainDestination.ANALYTICS).forEach { item ->
-            NavigationBarItem(
-                selected = destination == item,
-                onClick = { onDestination(item) },
-                icon = { Icon(item.icon, contentDescription = item.label) },
-                label = { Text(item.label) },
-            )
+    Box {
+        NavigationBar {
+            listOf(MainDestination.HOME, MainDestination.ANALYTICS).forEach { item ->
+                NavigationBarItem(
+                    selected = destination == item,
+                    onClick = { onDestination(item) },
+                    icon = { Icon(item.icon, contentDescription = item.label) },
+                    label = { Text(item.label) },
+                )
+            }
+            Spacer(Modifier.weight(1.2f))
+            listOf(MainDestination.SEARCH, MainDestination.MORE).forEach { item ->
+                NavigationBarItem(
+                    selected = destination == item,
+                    onClick = { onDestination(item) },
+                    icon = { Icon(item.icon, contentDescription = item.label) },
+                    label = { Text(item.label) },
+                )
+            }
         }
-        Spacer(Modifier.weight(1.2f))
-        listOf(MainDestination.SEARCH, MainDestination.MORE).forEach { item ->
-            NavigationBarItem(
-                selected = destination == item,
-                onClick = { onDestination(item) },
-                icon = { Icon(item.icon, contentDescription = item.label) },
-                label = { Text(item.label) },
-            )
+        FloatingActionButton(
+            onClick = onAdd,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 12.dp),
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            shape = CircleShape,
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "新增交易")
         }
     }
 }

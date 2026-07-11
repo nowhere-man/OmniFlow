@@ -7,6 +7,7 @@ import com.omniflow.shared.domain.model.AppPreferences
 import com.omniflow.shared.domain.model.AppearanceMode
 import com.omniflow.shared.domain.model.LedgerScope
 import com.omniflow.shared.domain.model.SyncTarget
+import com.omniflow.shared.domain.model.ThemeColor
 import com.omniflow.shared.domain.model.TransactionDetailDisplayMode
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -24,6 +25,7 @@ class SqlDelightAppPreferenceFacadeTest {
             analyticsLedgerScope = LedgerScope.Single("analytics-ledger"),
             transactionDetailDisplayMode = TransactionDetailDisplayMode.CARD,
             appearanceMode = AppearanceMode.DARK,
+            themeColor = ThemeColor.LAVENDER,
             appLockEnabled = true,
             syncTarget = SyncTarget.WEBDAV,
             backupRetention = 3,

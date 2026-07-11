@@ -6,6 +6,7 @@ object AppPreferenceKey {
     const val AnalyticsLedgerScope = "analytics_ledger_scope"
     const val TransactionDetailDisplayMode = "transaction_detail_display_mode"
     const val AppearanceMode = "appearance_mode"
+    const val ThemeColor = "theme_color"
     const val AppLockEnabled = "app_lock_enabled"
     const val SyncTarget = "sync_target"
     const val BackupRetention = "backup_retention"
@@ -19,6 +20,8 @@ enum class TransactionDetailDisplayMode { LIST, CARD }
 
 enum class AppearanceMode { SYSTEM, LIGHT, DARK }
 
+enum class ThemeColor { MIST_BLUE, SAGE, LAVENDER, SOFT_CORAL, WARM_AMBER, GRAPHITE }
+
 enum class SyncTarget { ICLOUD, WEBDAV }
 
 data class AppPreferences(
@@ -26,6 +29,7 @@ data class AppPreferences(
     val analyticsLedgerScope: LedgerScope = LedgerScope.All,
     val transactionDetailDisplayMode: TransactionDetailDisplayMode = TransactionDetailDisplayMode.LIST,
     val appearanceMode: AppearanceMode = AppearanceMode.SYSTEM,
+    val themeColor: ThemeColor = ThemeColor.GRAPHITE,
     val appLockEnabled: Boolean = false,
     val syncTarget: SyncTarget? = null,
     val backupRetention: Int = DEFAULT_BACKUP_RETENTION.toInt(),

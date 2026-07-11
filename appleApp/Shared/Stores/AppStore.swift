@@ -59,6 +59,7 @@ final class AppStore: ObservableObject {
     @Published var selectedImportItemIDs: Set<String> = []
     @Published var appLockEnabled = false
     @Published var appearanceMode = "SYSTEM"
+    @Published var themeColor = "GRAPHITE"
     @Published var analyticsExpenseMinor: Int64 = 0
     @Published var analyticsIncomeMinor: Int64 = 0
     @Published var analyticsPreviousExpenseChange: Int64 = 0
@@ -626,6 +627,17 @@ final class AppStore: ObservableObject {
         }
     }
 
+    func setThemeColor(_ color: String) {
+        themeColor = color
+        perform { done in
+            #if canImport(OmniFlowShared)
+            bridge.setThemeColor(colorName: color, callback: done)
+            #else
+            done(nil)
+            #endif
+        }
+    }
+
     func exportQingzi(start: Date? = nil, end: Date? = nil, completion: @escaping (String?) -> Void) {
         #if canImport(OmniFlowShared)
         let orderedStart = start.map { Calendar.current.startOfDay(for: $0) }
@@ -816,6 +828,7 @@ final class AppStore: ObservableObject {
                 self?.error = message
                 self?.appLockEnabled = value?.appLockEnabled ?? false
                 self?.appearanceMode = value?.appearanceMode ?? "SYSTEM"
+                self?.themeColor = value?.themeColor ?? "GRAPHITE"
                 self?.selectedLedgerID = value?.homeLedgerId
                 self?.analyticsLedgerID = value?.analyticsLedgerId
                 self?.transactionDisplayMode = TransactionDisplayMode(rawValue: value?.transactionDetailDisplayMode ?? "LIST") ?? .list

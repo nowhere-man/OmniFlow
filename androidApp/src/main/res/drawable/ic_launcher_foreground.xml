@@ -6,9 +6,9 @@
     <group
         android:pivotX="54"
         android:pivotY="54"
-        android:scaleX="0.82"
-        android:scaleY="0.82">
-        <path android:fillColor="#08090B" android:pathData="M17,27H43L65,47H86L96,54L86,61H65L43,81H17L43,54L17,27Z" />
-        <path android:fillColor="#FFFFFF" android:pathData="M36,38H45L62,54L45,70H36L53,54L36,38Z" />
+        android:scaleX="0.72"
+        android:scaleY="0.72">
+        <path android:fillColor="#FFFFFF" android:pathData="M17,27H43L65,47H86L96,54L86,61H65L43,81H17L43,54L17,27Z" />
+        <path android:fillColor="#08090B" android:pathData="M36,38H45L62,54L45,70H36L53,54L36,38Z" />
     </group>
 </vector>

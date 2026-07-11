@@ -40,6 +40,7 @@ import com.omniflow.shared.domain.model.StatementTable
 import com.omniflow.shared.domain.model.SyncConfig
 import com.omniflow.shared.domain.model.SyncState
 import com.omniflow.shared.domain.model.SyncTarget
+import com.omniflow.shared.domain.model.ThemeColor
 import com.omniflow.shared.domain.model.Tag
 import com.omniflow.shared.domain.model.Transaction
 import com.omniflow.shared.domain.model.TransactionDetailDisplayMode
@@ -688,6 +689,7 @@ class OmniFlowViewModel(
     }
 
     fun setAppearanceMode(mode: AppearanceMode) = savePreferences(preferences.copy(appearanceMode = mode))
+    fun setThemeColor(color: ThemeColor) = savePreferences(preferences.copy(themeColor = color))
     fun setAppLockEnabled(enabled: Boolean) = savePreferences(preferences.copy(appLockEnabled = enabled))
     fun configureSync(target: SyncTarget, retention: Int) {
         viewModelScope.launch {

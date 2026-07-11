@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -73,6 +74,7 @@ import com.omniflow.shared.domain.model.Ledger
 import com.omniflow.shared.domain.model.Money
 import com.omniflow.shared.domain.model.SyncPhase
 import com.omniflow.shared.domain.model.SyncTarget
+import com.omniflow.shared.domain.model.ThemeColor
 import com.omniflow.shared.domain.model.TransactionType
 import com.omniflow.shared.parser.ImportFormat
 import com.omniflow.android.WebDavCredentials
@@ -235,8 +237,46 @@ private fun SettingsPage(state: MoreUiState, viewModel: OmniFlowViewModel, onDat
                 }
             }
         }
+        item {
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("主题色", fontWeight = FontWeight.SemiBold)
+                    ThemeColor.entries.chunked(3).forEach { colors ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            colors.forEach { color ->
+                                FilterChip(
+                                    selected = state.preferences.themeColor == color,
+                                    onClick = { viewModel.setThemeColor(color) },
+                                    modifier = Modifier.weight(1f),
+                                    label = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Surface(
+                                                modifier = Modifier.size(12.dp),
+                                                shape = CircleShape,
+                                                color = themePrimaryColor(color, false),
+                                            ) {}
+                                            Spacer(Modifier.width(6.dp))
+                                            Text(themeColorLabel(color))
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
         item { Button(onClick = onData, modifier = Modifier.fillMaxWidth()) { Text("数据管理") } }
     }
+}
+
+private fun themeColorLabel(color: ThemeColor): String = when (color) {
+    ThemeColor.MIST_BLUE -> "雾蓝"
+    ThemeColor.SAGE -> "鼠尾草"
+    ThemeColor.LAVENDER -> "薰衣草"
+    ThemeColor.SOFT_CORAL -> "柔珊瑚"
+    ThemeColor.WARM_AMBER -> "暖琥珀"
+    ThemeColor.GRAPHITE -> "石墨灰"
 }
 
 @Composable

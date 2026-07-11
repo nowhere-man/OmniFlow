@@ -63,6 +63,7 @@ data class ApplePreferenceSnapshot(
     val analyticsLedgerId: String?,
     val transactionDetailDisplayMode: String,
     val appearanceMode: String,
+    val themeColor: String,
     val appLockEnabled: Boolean,
     val syncTarget: String?,
     val backupRetention: Int,
@@ -221,6 +222,7 @@ class AppleAppBridge(val app: SharedApp) {
                     analyticsLedgerId = (preferences.analyticsLedgerScope as? LedgerScope.Single)?.ledgerId,
                     transactionDetailDisplayMode = preferences.transactionDetailDisplayMode.name,
                     appearanceMode = preferences.appearanceMode.name,
+                    themeColor = preferences.themeColor.name,
                     appLockEnabled = preferences.appLockEnabled,
                     syncTarget = preferences.syncTarget?.name,
                     backupRetention = preferences.backupRetention,
@@ -631,6 +633,17 @@ class AppleAppBridge(val app: SharedApp) {
             callback(
                 app.preferences.save(
                     current.copy(appearanceMode = com.omniflow.shared.domain.model.AppearanceMode.valueOf(modeName)),
+                ).exceptionOrNull()?.message,
+            )
+        }
+    }
+
+    fun setThemeColor(colorName: String, callback: (String?) -> Unit) {
+        scope.launch {
+            val current = app.preferences.observe().first().getOrThrow()
+            callback(
+                app.preferences.save(
+                    current.copy(themeColor = com.omniflow.shared.domain.model.ThemeColor.valueOf(colorName)),
                 ).exceptionOrNull()?.message,
             )
         }

@@ -13,6 +13,7 @@ struct OmniFlowMacOSApp: App {
                     .frame(minWidth: 920, minHeight: 620)
             }
             .preferredColorScheme(store.appearanceMode == "DARK" ? .dark : store.appearanceMode == "LIGHT" ? .light : nil)
+            .appThemeTint(store.themeColor)
             .onChange(of: store.reminders) { ReminderNotificationScheduler.sync($0) }
         }
         .commands {
@@ -27,6 +28,7 @@ struct OmniFlowMacOSApp: App {
         Settings {
             SettingsView()
                 .environmentObject(store)
+                .appThemeTint(store.themeColor)
         }
     }
 }
@@ -42,6 +44,7 @@ struct OmniFlowIOSApp: App {
                     .environmentObject(store)
             }
             .preferredColorScheme(store.appearanceMode == "DARK" ? .dark : store.appearanceMode == "LIGHT" ? .light : nil)
+            .appThemeTint(store.themeColor)
             .onChange(of: store.reminders) { ReminderNotificationScheduler.sync($0) }
         }
     }
