@@ -5,6 +5,7 @@ import com.omniflow.shared.domain.model.TransactionType
 import com.omniflow.shared.parser.ImportFormat
 import java.io.File
 import java.nio.charset.Charset
+import org.junit.Assume.assumeTrue
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -41,6 +42,9 @@ class CsvBillParserTest {
         assertTrue(jdRows.first().note!!.contains("京东平台商户"))
     }
 
-    private fun fixture(name: String): File = File("../examples/$name").takeIf(File::exists)
-        ?: File("examples/$name")
+    private fun fixture(name: String): File {
+        val file = File("../examples/$name").takeIf(File::exists) ?: File("examples/$name")
+        assumeTrue("本地真实账单样例不存在：$name", file.exists())
+        return file
+    }
 }

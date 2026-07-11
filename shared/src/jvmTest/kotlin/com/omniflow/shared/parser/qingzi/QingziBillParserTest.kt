@@ -3,6 +3,7 @@ package com.omniflow.shared.parser.qingzi
 import com.omniflow.shared.domain.model.Money
 import com.omniflow.shared.domain.model.TransactionType
 import java.io.File
+import org.junit.Assume.assumeTrue
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -38,6 +39,9 @@ class QingziBillParserTest {
         assertEquals(Money(1_640), import.transactions.single().amount)
     }
 
-    private fun fixture(name: String): File = File("../examples/$name").takeIf(File::exists)
-        ?: File("examples/$name")
+    private fun fixture(name: String): File {
+        val file = File("../examples/$name").takeIf(File::exists) ?: File("examples/$name")
+        assumeTrue("本地真实账单样例不存在：$name", file.exists())
+        return file
+    }
 }
