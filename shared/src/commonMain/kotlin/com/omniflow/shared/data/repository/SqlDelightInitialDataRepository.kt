@@ -31,6 +31,11 @@ class SqlDelightInitialDataRepository(
 
             val ledgerId = ids.next()
             database.ledgerQueries.insertLedger(ledgerId, "我的账本", null, timestamp, timestamp)
+            database.appPreferenceQueries.upsertPreference(
+                key = AppPreferenceKey.DefaultLedgerId,
+                value = ledgerId,
+                updated_at = timestamp,
+            )
             SystemDefaults.categoryTemplates.forEach { category ->
                 database.categoryQueries.insertCategory(
                     id = ids.next(),

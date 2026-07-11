@@ -237,7 +237,12 @@ private fun GroupedOptionRow(
             Modifier.fillMaxWidth().heightIn(min = 84.dp).padding(horizontal = 20.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(28.dp))
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(28.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
             Column(
                 Modifier.weight(1f).padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -314,7 +319,7 @@ private fun SettingsPage(state: MoreUiState, viewModel: OmniFlowViewModel, onDat
                                 val selected = state.preferences.themeColor == color
                                 Column(
                                     modifier = Modifier
-                                        .width(72.dp)
+                                        .width(64.dp)
                                         .selectable(
                                             selected = selected,
                                             onClick = { viewModel.setThemeColor(color) },
@@ -325,7 +330,7 @@ private fun SettingsPage(state: MoreUiState, viewModel: OmniFlowViewModel, onDat
                                 ) {
                                     Surface(
                                         modifier = Modifier
-                                            .size(56.dp)
+                                            .size(48.dp)
                                             .border(
                                                 width = if (selected) 3.dp else 0.dp,
                                                 color = MaterialTheme.colorScheme.onSurface,

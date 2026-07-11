@@ -3,7 +3,7 @@ package com.omniflow.shared.data.facade
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
 import com.omniflow.shared.db.OmniFlowDatabase
-import com.omniflow.shared.db.TransactionsInRange
+import com.omniflow.shared.db.TransactionRowsInRange
 import com.omniflow.shared.domain.facade.HomeFacade
 import com.omniflow.shared.domain.model.CalendarDaySummary
 import com.omniflow.shared.domain.model.CalendarTransactionFilter
@@ -42,14 +42,14 @@ class SqlDelightHomeFacade(
             )
         } }
 
-    private fun observeRows(scope: LedgerScope, range: DateRange): Flow<List<TransactionsInRange>> =
-        database.transactionQueries.transactionsInRange(
+    private fun observeRows(scope: LedgerScope, range: DateRange): Flow<List<TransactionRowsInRange>> =
+        database.transactionQueries.transactionRowsInRange(
             start_inclusive = range.startInclusive.toEpochMilliseconds(),
             end_exclusive = range.endExclusive.toEpochMilliseconds(),
             ledger_filter = scope.ledgerIdOrNull(),
         ).asFlow().mapToList(Dispatchers.Default)
 
-    private fun homeState(query: HomeQuery, rows: List<TransactionsInRange>): HomeState {
+    private fun homeState(query: HomeQuery, rows: List<TransactionRowsInRange>): HomeState {
         val items = rows.map(::toListItem)
         return HomeState(
             scope = query.scope,
@@ -103,7 +103,7 @@ class SqlDelightHomeFacade(
         }
         .sortedByDescending(DayTransactionGroup::date)
 
-    private fun toListItem(row: TransactionsInRange) = TransactionListItem(
+    private fun toListItem(row: TransactionRowsInRange) = TransactionListItem(
         id = row.id,
         ledgerId = row.ledger_id,
         ledgerName = row.ledger_name,
@@ -111,6 +111,7 @@ class SqlDelightHomeFacade(
         accountName = row.account_name,
         categoryId = row.category_id,
         categoryName = row.category_name,
+        primaryCategoryName = row.primary_category_name,
         categoryIconKey = row.category_icon_key,
         amount = Money(row.amount_minor),
         type = TransactionType.valueOf(row.type),

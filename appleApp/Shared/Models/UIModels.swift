@@ -60,7 +60,7 @@ let categoryIconOptions = [
 private let categoryIconKeys = Set(categoryIconOptions.map(\.key))
 
 func categoryIconAssetKey(_ key: String?) -> String {
-    "fluent-\(key.flatMap { categoryIconKeys.contains($0) ? $0 : nil } ?? "category")"
+    key.flatMap { categoryIconKeys.contains($0) ? $0 : nil } ?? "category"
 }
 
 struct CategoryUI: Identifiable, Hashable {
@@ -112,9 +112,19 @@ struct CalendarDayUI: Identifiable, Hashable {
     var date: Date
     var expenseMinor: Int64
     var incomeMinor: Int64
+
+    func displayAmount(filter: String) -> (amount: Int64, income: Bool)? {
+        let value: (Int64, Bool)
+        switch filter {
+        case "INCOME": value = (incomeMinor, true)
+        case "EXPENSE": value = (expenseMinor, false)
+        default: value = incomeMinor >= expenseMinor ? (incomeMinor - expenseMinor, true) : (expenseMinor - incomeMinor, false)
+        }
+        return value.0 == 0 ? nil : value
+    }
 }
 struct AnalyticsPointUI: Identifiable, Hashable { let id = UUID(); var label: String; var expense: Int64; var income: Int64 }
-struct CategoryShareUI: Identifiable, Hashable { let id: String; var name: String; var amount: Int64 }
+struct CategoryShareUI: Identifiable, Hashable { let id: String; var name: String; var iconKey: String?; var amount: Int64 }
 struct TagSummaryUI: Identifiable, Hashable { let id: String; var name: String; var expense: Int64; var income: Int64 }
 struct AccountAssetUI: Identifiable, Hashable { let id: String; var name: String; var balance: Int64 }
 struct BackupUI: Identifiable, Hashable { let id: String; var createdAt: String }
@@ -140,12 +150,18 @@ struct TransactionUI: Identifiable, Hashable {
     var accountName: String
     var categoryID: String
     var categoryName: String
+    var primaryCategoryName: String
     var categoryIconKey: String?
     var amountMinor: Int64
     var type: EntryType
     var date: Date
     var note: String
     var excluded: Bool
+    var tagNames: [String] = []
+
+    var categoryDisplayName: String {
+        primaryCategoryName == categoryName ? categoryName : "\(primaryCategoryName)-\(categoryName)"
+    }
 }
 
 enum TransactionDisplayMode: String, CaseIterable, Identifiable {
@@ -221,4 +237,6 @@ extension Int64 {
         let value = Decimal(self) / 100
         return value.formatted(.currency(code: "CNY"))
     }
+
+    var wholeRmb: String { "¥\(self / 100)" }
 }

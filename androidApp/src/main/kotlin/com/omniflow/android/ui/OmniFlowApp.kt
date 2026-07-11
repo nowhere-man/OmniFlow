@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -85,6 +84,7 @@ import androidx.compose.ui.unit.dp
 import com.omniflow.shared.domain.model.CalendarDaySummary
 import com.omniflow.shared.domain.model.AppearanceMode
 import com.omniflow.shared.domain.model.CalendarTransactionFilter
+import com.omniflow.shared.domain.model.displayAmount
 import com.omniflow.shared.domain.model.DayTransactionGroup
 import com.omniflow.shared.domain.model.LedgerScope
 import com.omniflow.shared.domain.model.Money
@@ -122,6 +122,7 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
     val analyticsState by viewModel.analyticsUiState.collectAsState()
     val searchState by viewModel.searchUiState.collectAsState()
     val transactionState by viewModel.transactionUiState.collectAsState()
+    val transactionRecordDetailState by viewModel.transactionRecordDetailUiState.collectAsState()
     val moreState by viewModel.moreUiState.collectAsState()
     var destination by rememberSaveable { mutableStateOf(MainDestination.HOME) }
     var moreStartPage by rememberSaveable { mutableStateOf(MorePage.HOME) }
@@ -148,7 +149,9 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
         }
     }
     BackHandler {
-        if (destination == MainDestination.ADD) {
+        if (transactionRecordDetailState.isVisible) {
+            viewModel.dismissTransactionRecordDetail()
+        } else if (destination == MainDestination.ADD) {
             destination = MainDestination.HOME
         } else {
             val now = SystemClock.elapsedRealtime()
@@ -231,8 +234,8 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
                         destination = MainDestination.ADD
                     },
                     onEdit = { transactionId ->
-                        viewModel.editTransaction(transactionId)
-                        destination = MainDestination.ADD
+                        viewModel.dismissDate()
+                        viewModel.showTransactionRecordDetail(transactionId)
                     },
                     onManageLedgers = {
                         moreStartPage = MorePage.LEDGERS
@@ -277,8 +280,6 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
                     onAmountKey = viewModel::pressAmountKey,
                     onSaveAgain = { viewModel.saveTransaction(true) },
                     onDone = { viewModel.saveTransaction(false) },
-                    onDelete = viewModel::deleteEditingTransaction,
-                    onDismiss = { destination = MainDestination.HOME },
                     modifier = Modifier.padding(padding),
                 )
                 MainDestination.SEARCH -> SearchScreen(
@@ -290,17 +291,9 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
                     onSecondaryCategory = viewModel::setSearchSecondaryCategory,
                     onTag = viewModel::setSearchTag,
                     onAccount = viewModel::setSearchAccount,
-                    onAmount = viewModel::setSearchAmount,
-                    onDateRange = viewModel::setSearchDateRange,
-                    onToggleAdvanced = viewModel::toggleAdvancedSearch,
                     onClear = viewModel::clearSearch,
                     onEditTransaction = { transactionId ->
-                        viewModel.editTransaction(transactionId)
-                        destination = MainDestination.ADD
-                    },
-                    onAddTransaction = {
-                        viewModel.startNewTransaction()
-                        destination = MainDestination.ADD
+                        viewModel.showTransactionRecordDetail(transactionId)
                     },
                     modifier = Modifier.padding(padding),
                 )
@@ -311,6 +304,18 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
                     modifier = Modifier.padding(padding),
                 )
             }
+        }
+        if (transactionRecordDetailState.isVisible) {
+            TransactionRecordDetailSheet(
+                state = transactionRecordDetailState,
+                onDismiss = viewModel::dismissTransactionRecordDetail,
+                onEdit = { transactionId ->
+                    viewModel.dismissTransactionRecordDetail()
+                    viewModel.editTransaction(transactionId)
+                    destination = MainDestination.ADD
+                },
+                onDelete = viewModel::deleteTransactionRecordDetail,
+            )
         }
         }
     }
@@ -465,6 +470,7 @@ private fun HomeScreen(
                 CalendarMonth(
                     month = home.month.startInclusive.toLocalDateTime(ChinaTimeZone).date,
                     summaries = home.calendar,
+                    filter = state.calendarFilter,
                     onDateSelected = onDateSelected,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -622,18 +628,23 @@ private fun CalendarFilter(
             }
             IconButton(
                 onClick = { onSelected(filter) },
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(
                         if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                         CircleShape,
                     ),
-            ) {
-                Icon(
-                    icon,
-                    contentDescription = label,
-                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = label,
+                        modifier = Modifier.size(18.dp),
+                        tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
@@ -666,6 +677,7 @@ private fun HomeEmptyState(
 private fun CalendarMonth(
     month: LocalDate,
     summaries: List<CalendarDaySummary>,
+    filter: CalendarTransactionFilter,
     onDateSelected: (LocalDate) -> Unit,
 ) {
     val totals = remember(summaries) { summaries.associateBy(CalendarDaySummary::date) }
@@ -690,9 +702,9 @@ private fun CalendarMonth(
         cells.chunked(7).forEach { week ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 week.forEach { date ->
-                    CalendarCell(date, date == today, date?.let(totals::get), onDateSelected, Modifier.weight(1f))
+                    CalendarCell(date, date == today, date?.let(totals::get), filter, onDateSelected, Modifier.weight(1f))
                 }
-                repeat(7 - week.size) { Spacer(Modifier.weight(1f).aspectRatio(1f)) }
+                repeat(7 - week.size) { Spacer(Modifier.weight(1f).height(56.dp)) }
             }
         }
     }
@@ -703,16 +715,17 @@ private fun CalendarCell(
     date: LocalDate?,
     isToday: Boolean,
     summary: CalendarDaySummary?,
+    filter: CalendarTransactionFilter,
     onDateSelected: (LocalDate) -> Unit,
     modifier: Modifier,
 ) {
     if (date == null) {
-        Spacer(modifier.aspectRatio(1f))
+        Spacer(modifier.height(56.dp))
         return
     }
     Column(
         modifier = modifier
-            .aspectRatio(1f)
+            .height(56.dp)
             .clip(RoundedCornerShape(6.dp))
             .clickable { onDateSelected(date) }
             .padding(vertical = 4.dp),
@@ -734,13 +747,13 @@ private fun CalendarCell(
                 fontWeight = if (isToday) FontWeight.SemiBold else FontWeight.Normal,
             )
         }
-        if (summary != null) {
-            if (summary.expenseTotal != Money.Zero) {
-                Text(summary.expenseTotal.asCompactRmb(), color = ExpenseColor, style = MaterialTheme.typography.labelSmall)
-            }
-            if (summary.incomeTotal != Money.Zero) {
-                Text(summary.incomeTotal.asCompactRmb(), color = IncomeColor, style = MaterialTheme.typography.labelSmall)
-            }
+        summary?.displayAmount(filter)?.let { display ->
+            Text(
+                display.amount.asCompactRmb(),
+                color = if (display.isIncome) IncomeColor else ExpenseColor,
+                maxLines = 1,
+                style = MaterialTheme.typography.labelSmall,
+            )
         }
     }
 }
@@ -762,8 +775,14 @@ private fun TransactionGroups(groups: List<DayTransactionGroup>, displayMode: Tr
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(group.date.displayName(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.weight(1f))
-                    if (group.expenseTotal != Money.Zero) Text("支出 ${group.expenseTotal.asRmb()}", color = ExpenseColor, style = MaterialTheme.typography.labelMedium)
-                    if (group.incomeTotal != Money.Zero) Text("收入 ${group.incomeTotal.asRmb()}", color = IncomeColor, style = MaterialTheme.typography.labelMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        if (group.expenseTotal != Money.Zero) {
+                            Text("支出 ${group.expenseTotal.asCompactRmb()}", color = ExpenseColor, style = MaterialTheme.typography.labelMedium)
+                        }
+                        if (group.incomeTotal != Money.Zero) {
+                            Text("收入 ${group.incomeTotal.asCompactRmb()}", color = IncomeColor, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
                 }
                 TransactionItems(group.items, displayMode, onEdit)
             }
@@ -801,7 +820,7 @@ private fun TransactionListRow(item: TransactionListItem, onEdit: (String) -> Un
         CategoryIcon(item.categoryIconKey)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(item.categoryName, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+            Text(item.categoryDisplayName, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
             Text(item.accountName, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         }
         Column(horizontalAlignment = Alignment.End) {
@@ -824,7 +843,7 @@ private fun TransactionCard(item: TransactionListItem, modifier: Modifier = Modi
                 Spacer(Modifier.weight(1f))
                 AmountText(item)
             }
-            Text(item.categoryName, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+            Text(item.categoryDisplayName, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
             Text(item.accountName, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         }
     }
@@ -860,6 +879,9 @@ private fun DateDetailSheet(
     onDismiss: () -> Unit,
     onEdit: (String) -> Unit,
 ) {
+    var displayMode by remember(state?.date?.startInclusive) {
+        mutableStateOf(TransactionDetailDisplayMode.CARD)
+    }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         when {
             isLoading -> LoadingState()
@@ -869,12 +891,26 @@ private fun DateDetailSheet(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 val date = state.date.startInclusive.toLocalDateTime(ChinaTimeZone).date
-                Text(date.displayName(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(date.displayName(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = {
+                        displayMode = when (displayMode) {
+                            TransactionDetailDisplayMode.CARD -> TransactionDetailDisplayMode.LIST
+                            TransactionDetailDisplayMode.LIST -> TransactionDetailDisplayMode.CARD
+                        }
+                    }) {
+                        Icon(
+                            if (displayMode == TransactionDetailDisplayMode.CARD) Icons.AutoMirrored.Filled.List else Icons.Default.ViewModule,
+                            contentDescription = "切换卡片和列表",
+                        )
+                    }
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     SummaryAmount("当日支出", state.summary.expenseTotal, ExpenseColor)
                     SummaryAmount("当日收入", state.summary.incomeTotal, IncomeColor)
                 }
-                TransactionItems(state.items, TransactionDetailDisplayMode.LIST, onEdit)
+                TransactionItems(state.items, displayMode, onEdit)
                 if (state.items.isEmpty()) Text("当日暂无交易")
                 Spacer(Modifier.height(20.dp))
             }

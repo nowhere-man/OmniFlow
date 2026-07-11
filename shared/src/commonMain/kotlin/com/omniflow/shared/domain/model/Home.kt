@@ -29,13 +29,17 @@ data class TransactionListItem(
     val accountName: String,
     val categoryId: CategoryId,
     val categoryName: String,
+    val primaryCategoryName: String,
     val categoryIconKey: String?,
     val amount: Money,
     val type: TransactionType,
     val occurredAt: Instant,
     val note: String?,
     val isExcluded: Boolean,
-)
+) {
+    val categoryDisplayName: String
+        get() = if (primaryCategoryName == categoryName) categoryName else "$primaryCategoryName-$categoryName"
+}
 
 data class DayTransactionGroup(
     val date: LocalDate,
@@ -49,6 +53,24 @@ data class CalendarDaySummary(
     val expenseTotal: Money,
     val incomeTotal: Money,
 )
+
+data class CalendarDisplayAmount(
+    val amount: Money,
+    val isIncome: Boolean,
+)
+
+fun CalendarDaySummary.displayAmount(filter: CalendarTransactionFilter): CalendarDisplayAmount? {
+    val display = when (filter) {
+        CalendarTransactionFilter.INCOME -> CalendarDisplayAmount(incomeTotal, isIncome = true)
+        CalendarTransactionFilter.EXPENSE -> CalendarDisplayAmount(expenseTotal, isIncome = false)
+        CalendarTransactionFilter.ALL -> if (incomeTotal >= expenseTotal) {
+            CalendarDisplayAmount(incomeTotal - expenseTotal, isIncome = true)
+        } else {
+            CalendarDisplayAmount(expenseTotal - incomeTotal, isIncome = false)
+        }
+    }
+    return display.takeUnless { it.amount == Money.Zero }
+}
 
 data class TransactionSummary(
     val expenseTotal: Money,

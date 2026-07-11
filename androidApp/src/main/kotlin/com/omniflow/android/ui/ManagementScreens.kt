@@ -277,7 +277,11 @@ private fun CategoryIconButton(selectedKey: String, onClick: () -> Unit) {
         shape = RoundedCornerShape(12.dp),
     ) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            SvgIcon(colorCategoryIconKey(selectedKey), Modifier.size(36.dp))
+            SvgIcon(
+                categoryIconKey(selectedKey),
+                Modifier.size(36.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text("分类图标", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(option?.label ?: "默认图标", fontWeight = FontWeight.SemiBold)
@@ -316,7 +320,11 @@ private fun CategoryIconPickerDialog(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center,
                         ) {
-                            SvgIcon(colorCategoryIconKey(option.key), Modifier.size(34.dp))
+                            SvgIcon(
+                                categoryIconKey(option.key),
+                                Modifier.size(34.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
                             Text(
                                 option.label,
                                 style = MaterialTheme.typography.labelSmall,

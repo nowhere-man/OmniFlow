@@ -20,7 +20,7 @@ enum class TransactionDetailDisplayMode { LIST, CARD }
 
 enum class AppearanceMode { SYSTEM, LIGHT, DARK }
 
-enum class ThemeColor { MIST_BLUE, SAGE, LAVENDER, SOFT_CORAL, WARM_AMBER, GRAPHITE }
+enum class ThemeColor { LAVENDER, MIST_BLUE, SAGE, SOFT_CORAL, WARM_AMBER, GRAPHITE }
 
 enum class SyncTarget { ICLOUD, WEBDAV }
 
@@ -29,7 +29,7 @@ data class AppPreferences(
     val analyticsLedgerScope: LedgerScope = LedgerScope.All,
     val transactionDetailDisplayMode: TransactionDetailDisplayMode = TransactionDetailDisplayMode.LIST,
     val appearanceMode: AppearanceMode = AppearanceMode.SYSTEM,
-    val themeColor: ThemeColor = ThemeColor.GRAPHITE,
+    val themeColor: ThemeColor = ThemeColor.LAVENDER,
     val appLockEnabled: Boolean = false,
     val syncTarget: SyncTarget? = null,
     val backupRetention: Int = DEFAULT_BACKUP_RETENTION.toInt(),

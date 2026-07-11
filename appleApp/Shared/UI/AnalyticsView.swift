@@ -1,14 +1,15 @@
+import Charts
 import SwiftUI
 
 struct AnalyticsView: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.colorScheme) private var colorScheme
     @State private var mode = RangeMode.month
     @State private var anchor = Date()
     @State private var customStart = Date()
     @State private var customEnd = Date()
     @State private var showIncome = true
     @State private var showExpense = true
-    @State private var selectedPointLabel: String?
 
     var body: some View {
         ScrollView {
@@ -54,10 +55,12 @@ struct AnalyticsView: View {
                         store.startNewTransaction()
                     }
                 } else {
-                    HStack(spacing: 12) {
-                        SummaryCard(title: "总支出", value: store.analyticsExpenseMinor.rmb)
-                        SummaryCard(title: "总收入", value: store.analyticsIncomeMinor.rmb)
-                        SummaryCard(title: "总结余", value: (store.analyticsIncomeMinor - store.analyticsExpenseMinor).rmb)
+                    LiquidGlassContainer(spacing: 12) {
+                        HStack(spacing: 12) {
+                            SummaryCard(title: "总支出", value: store.analyticsExpenseMinor.rmb)
+                            SummaryCard(title: "总收入", value: store.analyticsIncomeMinor.rmb)
+                            SummaryCard(title: "总结余", value: (store.analyticsIncomeMinor - store.analyticsExpenseMinor).rmb)
+                        }
                     }
                     Button("查看年度账单") { store.loadAnalyticsStatement(year: Calendar.current.component(.year, from: anchor)) }
                     VStack(alignment: .leading, spacing: 10) {
@@ -80,35 +83,37 @@ struct AnalyticsView: View {
                             Toggle("收入", isOn: $showIncome).toggleStyle(.button)
                             Toggle("支出", isOn: $showExpense).toggleStyle(.button)
                         }
-                        let maximum = max(store.analyticsPoints.flatMap { [$0.income, $0.expense] }.max() ?? 1, 1)
-                        ForEach(store.analyticsPoints) { point in
-                            Button { selectedPointLabel = point.label } label: {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(point.label).font(.caption)
-                                    if showIncome { AmountBar(label: "收入", value: point.income, maximum: maximum) }
-                                    if showExpense { AmountBar(label: "支出", value: point.expense, maximum: maximum) }
-                                }
-                                .padding(8)
-                                .background(selectedPointLabel == point.label ? Color.primary.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 8))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        if let point = store.analyticsPoints.first(where: { $0.label == selectedPointLabel }) {
-                            Text("已选 \(point.label)：收入 \(point.income.rmb) · 支出 \(point.expense.rmb)")
-                        }
+                        TrendChart(points: store.analyticsPoints, showIncome: showIncome, showExpense: showExpense)
                     }
                     AnalyticsCard(title: "同环比") {
-                        Text("环比支出变化 \(store.analyticsPreviousExpenseChange.rmb)")
-                        Text("环比收入变化 \(store.analyticsPreviousIncomeChange.rmb)")
-                        Text("环比结余变化 \(store.analyticsPreviousNetChange.rmb)")
-                        Text("同比支出变化 \(store.analyticsYearExpenseChange.rmb)")
-                        Text("同比收入变化 \(store.analyticsYearIncomeChange.rmb)")
-                        Text("同比结余变化 \(store.analyticsYearNetChange.rmb)")
+                        ComparisonPanel(
+                            title: "上一周期",
+                            currentExpense: store.analyticsExpenseMinor,
+                            currentIncome: store.analyticsIncomeMinor,
+                            previousExpense: store.analyticsPreviousExpenseMinor,
+                            previousIncome: store.analyticsPreviousIncomeMinor
+                        )
+                        ComparisonPanel(
+                            title: "去年同期",
+                            currentExpense: store.analyticsExpenseMinor,
+                            currentIncome: store.analyticsIncomeMinor,
+                            previousExpense: store.analyticsYearPreviousExpenseMinor,
+                            previousIncome: store.analyticsYearPreviousIncomeMinor
+                        )
                     }
                     AnalyticsCard(title: "收支排行榜") {
                         ForEach(store.analyticsRanking) { item in
-                            Button { store.editTransaction(item) } label: {
-                                HStack { Text(item.categoryName); Spacer(); Text(item.amountMinor.rmb) }
+                            Button { store.showTransactionDetail(item) } label: {
+                                HStack(spacing: 10) {
+                                    SVGIconView(
+                                        key: categoryIconAssetKey(item.categoryIconKey ?? "category"),
+                                        size: 24,
+                                        tint: (AppThemeColor(rawValue: store.themeColor) ?? .lavender).cssColor(for: colorScheme)
+                                    )
+                                    Text(item.categoryDisplayName)
+                                    Spacer()
+                                    Text(item.amountMinor.rmb).fontWeight(.semibold)
+                                }
                             }
                             .buttonStyle(.plain)
                             Divider()
@@ -122,17 +127,20 @@ struct AnalyticsView: View {
                             }
                         }
                         let total = max(store.analyticsCategories.map(\.amount).reduce(0, +), 1)
-                        ForEach(store.analyticsCategories) { item in
+                        DonutChart(items: store.analyticsCategories)
+                            .frame(height: 190)
+                        ForEach(store.analyticsCategories.indices, id: \.self) { index in
+                            let item = store.analyticsCategories[index]
                             if store.analyticsCategoryGranularity == .primary {
                                 Button {
                                     store.analyticsPrimaryCategoryID = item.id
                                     store.analyticsCategoryGranularity = .secondary
                                 } label: {
-                                    AmountBar(label: item.name, value: item.amount, maximum: total)
+                                    CategoryShareRow(item: item, maximum: total, color: analyticsPalette[index % analyticsPalette.count])
                                 }
                                 .buttonStyle(.plain)
                             } else {
-                                AmountBar(label: item.name, value: item.amount, maximum: total)
+                                CategoryShareRow(item: item, maximum: total, color: analyticsPalette[index % analyticsPalette.count])
                             }
                         }
                     }
@@ -209,7 +217,7 @@ struct AnalyticsView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
+        .liquidGlassSurface(cornerRadius: 12, interactive: true)
     }
 
     private func format(_ date: Date, _ pattern: String) -> String {
@@ -269,25 +277,193 @@ private struct AnalyticsCard<Content: View>: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .liquidGlassSurface(cornerRadius: 18)
     }
 }
 
-private struct AmountBar: View {
-    let label: String
-    let value: Int64
-    let maximum: Int64
+private let analyticsPalette: [Color] = [.accentColor, .orange, .cyan, .purple, .pink, .green, .indigo]
+
+private struct TrendChart: View {
+    let points: [AnalyticsPointUI]
+    let showIncome: Bool
+    let showExpense: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack { Text(label); Spacer(); Text(value.rmb) }
+        Chart {
+            ForEach(points) { point in
+                if showIncome {
+                    BarMark(
+                        x: .value("日期", point.label),
+                        y: .value("收入", Double(point.income) / 100)
+                    )
+                    .foregroundStyle(Color.accentColor)
+                }
+                if showExpense {
+                    BarMark(
+                        x: .value("日期", point.label),
+                        y: .value("支出", -Double(point.expense) / 100)
+                    )
+                    .foregroundStyle(Color.red.opacity(0.78))
+                }
+            }
+            RuleMark(y: .value("零", 0.0)).foregroundStyle(Color.secondary.opacity(0.5))
+        }
+        .chartLegend(.hidden)
+        .frame(height: 220)
+        HStack(spacing: 16) {
+            chartLegend("收入", color: .accentColor)
+            chartLegend("支出", color: .red)
+        }
+    }
+
+    private func chartLegend(_ label: String, color: Color) -> some View {
+        HStack(spacing: 5) {
+            Circle().fill(color).frame(width: 8, height: 8)
+            Text(label).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct ComparisonMetric: Identifiable {
+    let label: String
+    let current: Int64
+    let previous: Int64
+    let expense: Bool
+    var id: String { label }
+}
+
+private struct ComparisonPanel: View {
+    let title: String
+    let currentExpense: Int64
+    let currentIncome: Int64
+    let previousExpense: Int64
+    let previousIncome: Int64
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(title).font(.headline)
+                Spacer()
+                chartLegend("当前", color: .primary)
+                chartLegend(title, color: .secondary)
+            }
+            ForEach(metrics) { metric in ComparisonMetricRow(metric: metric) }
+        }
+        .padding(12)
+        .liquidGlassSurface(cornerRadius: 16)
+    }
+
+    private var metrics: [ComparisonMetric] {
+        [
+            ComparisonMetric(label: "支出", current: currentExpense, previous: previousExpense, expense: true),
+            ComparisonMetric(label: "收入", current: currentIncome, previous: previousIncome, expense: false),
+            ComparisonMetric(
+                label: "结余",
+                current: currentIncome - currentExpense,
+                previous: previousIncome - previousExpense,
+                expense: false
+            ),
+        ]
+    }
+
+    private func chartLegend(_ label: String, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Capsule().fill(color).frame(width: 12, height: 5)
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct ComparisonMetricRow: View {
+    let metric: ComparisonMetric
+
+    var body: some View {
+        let maximum = max(max(abs(metric.current), abs(metric.previous)), 1)
+        let change = metric.current - metric.previous
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text(metric.label).font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("\(change >= 0 ? "+" : "")\(change.rmb)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(favorable(change) ? Color.accentColor : Color.red)
+            }
+            comparisonBar(value: metric.current, maximum: maximum, color: .primary)
+            comparisonBar(value: metric.previous, maximum: maximum, color: .secondary)
+        }
+    }
+
+    private func comparisonBar(value: Int64, maximum: Int64, color: Color) -> some View {
+        HStack(spacing: 8) {
             GeometryReader { proxy in
                 Capsule().fill(.quaternary)
                     .overlay(alignment: .leading) {
-                        Capsule().fill(.tint).frame(width: proxy.size.width * CGFloat(value) / CGFloat(maximum))
+                        Capsule().fill(color).frame(width: proxy.size.width * CGFloat(abs(value)) / CGFloat(maximum))
                     }
             }
-            .frame(height: 8)
+            .frame(height: 7)
+            Text(value.rmb).font(.caption2).frame(width: 78, alignment: .trailing)
+        }
+    }
+
+    private func favorable(_ change: Int64) -> Bool { metric.expense ? change <= 0 : change >= 0 }
+}
+
+private struct DonutChart: View {
+    let items: [CategoryShareUI]
+
+    var body: some View {
+        let total = max(items.map(\.amount).reduce(0, +), 1)
+        Canvas { context, size in
+            let center = CGPoint(x: size.width / 2, y: size.height / 2)
+            let radius = min(size.width, size.height) * 0.34
+            var start = Angle.degrees(-90)
+            for (index, item) in items.enumerated() {
+                let sweep = Angle.degrees(360 * Double(item.amount) / Double(total))
+                let end = start + sweep
+                var path = Path()
+                path.addArc(center: center, radius: radius, startAngle: start, endAngle: end, clockwise: false)
+                context.stroke(
+                    path,
+                    with: .color(analyticsPalette[index % analyticsPalette.count]),
+                    style: StrokeStyle(lineWidth: 28, lineCap: .butt)
+                )
+                start = end
+            }
+        }
+        .overlay {
+            VStack(spacing: 2) {
+                Text("合计").font(.caption).foregroundStyle(.secondary)
+                Text(total.rmb).font(.headline.bold())
+            }
+        }
+    }
+}
+
+private struct CategoryShareRow: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.colorScheme) private var colorScheme
+    let item: CategoryShareUI
+    let maximum: Int64
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            SVGIconView(
+                key: categoryIconAssetKey(item.iconKey ?? "category"),
+                size: 24,
+                tint: (AppThemeColor(rawValue: store.themeColor) ?? .lavender).cssColor(for: colorScheme)
+            )
+            VStack(alignment: .leading, spacing: 5) {
+                HStack { Text(item.name); Spacer(); Text(item.amount.rmb).font(.caption) }
+                GeometryReader { proxy in
+                    Capsule().fill(.quaternary)
+                        .overlay(alignment: .leading) {
+                            Capsule().fill(color).frame(width: proxy.size.width * CGFloat(item.amount) / CGFloat(maximum))
+                        }
+                }
+                .frame(height: 8)
+            }
         }
     }
 }

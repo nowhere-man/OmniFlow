@@ -90,6 +90,7 @@ class SqlDelightSearchTransactionsUseCase(
             accountName = row.account_name,
             categoryId = row.category_id,
             categoryName = row.category_name,
+            primaryCategoryName = row.primary_category_name,
             categoryIconKey = row.category_icon_key,
             amount = Money(row.amount_minor),
             type = TransactionType.valueOf(row.type),

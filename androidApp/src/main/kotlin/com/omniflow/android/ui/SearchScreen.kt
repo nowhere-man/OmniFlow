@@ -1,33 +1,33 @@
 package com.omniflow.android.ui
 
-import android.app.DatePickerDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
-import androidx.compose.material3.Button
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -37,23 +37,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.omniflow.shared.domain.model.Account
 import com.omniflow.shared.domain.model.Category
-import com.omniflow.shared.domain.model.DateRange
 import com.omniflow.shared.domain.model.Ledger
 import com.omniflow.shared.domain.model.LedgerScope
 import com.omniflow.shared.domain.model.Tag
 import com.omniflow.shared.domain.model.TransactionType
-import kotlinx.datetime.LocalDate
-import kotlinx.datetime.atStartOfDayIn
-import kotlinx.datetime.toLocalDateTime
-
-private enum class AmountMode { NONE, EXACT, RANGE }
 
 @Composable
 internal fun SearchScreen(
@@ -65,30 +58,13 @@ internal fun SearchScreen(
     onSecondaryCategory: (String?) -> Unit,
     onTag: (String?) -> Unit,
     onAccount: (String?) -> Unit,
-    onAmount: (String, String, String) -> Unit,
-    onDateRange: (DateRange?) -> Unit,
-    onToggleAdvanced: () -> Unit,
     onClear: () -> Unit,
     onEditTransaction: (String) -> Unit,
-    onAddTransaction: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var amountMode by remember { mutableStateOf(AmountMode.NONE) }
-    var exact by remember { mutableStateOf("") }
-    var minimum by remember { mutableStateOf("") }
-    var maximum by remember { mutableStateOf("") }
-    var startDate by remember { mutableStateOf<LocalDate?>(null) }
-    var endDate by remember { mutableStateOf<LocalDate?>(null) }
     val primaryCategories = state.categories.filter { it.parentId == null }
-    val secondaryCategories = state.categories.filter { it.parentId == state.query.primaryCategoryId }
-    fun clearFilters() {
-        amountMode = AmountMode.NONE
-        exact = ""
-        minimum = ""
-        maximum = ""
-        startDate = null
-        endDate = null
-        onClear()
+    val secondaryCategories = state.categories.filter { category ->
+        category.parentId != null && (state.query.primaryCategoryId == null || category.parentId == state.query.primaryCategoryId)
     }
 
     LazyColumn(
@@ -111,129 +87,69 @@ internal fun SearchScreen(
             )
         }
         item {
-            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+            Card(
+                Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            ) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        Modifier.fillMaxWidth().clickable(onClick = onToggleAdvanced),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("筛选", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("筛选", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
-                        if (state.query.hasFilters) {
-                            TextButton(onClick = ::clearFilters) { Text("清除") }
-                        }
-                        Icon(
-                            if (state.isAdvancedExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = if (state.isAdvancedExpanded) "收起筛选" else "展开筛选",
+                        if (state.query.hasFilters) TextButton(onClick = onClear) { Text("清除") }
+                    }
+                    SearchTypeSelector(state.query.type, onType)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ValueMenu(
+                            label = when (val scope = state.query.scope) {
+                                LedgerScope.All -> "所有账本"
+                                is LedgerScope.Single -> state.ledgers.firstOrNull { it.id == scope.ledgerId }?.name ?: "账本"
+                            },
+                            allLabel = "所有账本",
+                            values = state.ledgers,
+                            valueLabel = Ledger::name,
+                            onAll = { onScope(LedgerScope.All) },
+                            onSelected = { onScope(LedgerScope.Single(it.id)) },
+                            modifier = Modifier.weight(1f),
+                        )
+                        ValueMenu(
+                            label = state.accounts.firstOrNull { it.id == state.query.accountId }?.name ?: "所有账户",
+                            allLabel = "所有账户",
+                            values = state.accounts,
+                            valueLabel = Account::name,
+                            onAll = { onAccount(null) },
+                            onSelected = { onAccount(it.id) },
+                            modifier = Modifier.weight(1f),
                         )
                     }
-                    if (state.isAdvancedExpanded) {
-                        Text("类型", style = MaterialTheme.typography.labelLarge)
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(null, TransactionType.EXPENSE, TransactionType.INCOME).forEach { type ->
-                            FilterChip(
-                                selected = state.query.type == type,
-                                onClick = { onType(type) },
-                                modifier = Modifier.weight(1f),
-                                label = { Text(type?.let { if (it == TransactionType.EXPENSE) "支出" else "收入" } ?: "不限") },
-                            )
-                        }
-                    }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ValueMenu(
-                                label = when (val scope = state.query.scope) {
-                                    LedgerScope.All -> "所有账本"
-                                    is LedgerScope.Single -> state.ledgers.firstOrNull { it.id == scope.ledgerId }?.name ?: "账本"
-                                },
-                                allLabel = "所有账本",
-                                values = state.ledgers,
-                                valueLabel = Ledger::name,
-                                onAll = { onScope(LedgerScope.All) },
-                                onSelected = { onScope(LedgerScope.Single(it.id)) },
-                                modifier = Modifier.weight(1f),
-                            )
-                            ValueMenu(
-                                label = state.accounts.firstOrNull { it.id == state.query.accountId }?.name ?: "不限账户",
-                                allLabel = "不限账户",
-                                values = state.accounts,
-                                valueLabel = Account::name,
-                                onAll = { onAccount(null) },
-                                onSelected = { onAccount(it.id) },
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ValueMenu(
-                                label = primaryCategories.firstOrNull { it.id == state.query.primaryCategoryId }?.name ?: "不限一级分类",
-                                allLabel = "不限一级分类",
-                                values = primaryCategories,
-                                valueLabel = Category::name,
-                                onAll = { onPrimaryCategory(null) },
-                                onSelected = { onPrimaryCategory(it.id) },
-                                modifier = Modifier.weight(1f),
-                            )
-                            if (secondaryCategories.isNotEmpty()) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         ValueMenu(
-                            label = secondaryCategories.firstOrNull { it.id == state.query.secondaryCategoryId }?.name ?: "不限二级分类",
-                            allLabel = "不限二级分类",
+                            label = primaryCategories.firstOrNull { it.id == state.query.primaryCategoryId }?.name ?: "所有一级分类",
+                            allLabel = "所有一级分类",
+                            values = primaryCategories,
+                            valueLabel = Category::name,
+                            onAll = { onPrimaryCategory(null) },
+                            onSelected = { onPrimaryCategory(it.id) },
+                            modifier = Modifier.weight(1f),
+                        )
+                        ValueMenu(
+                            label = secondaryCategories.firstOrNull { it.id == state.query.secondaryCategoryId }?.name ?: "所有二级分类",
+                            allLabel = "所有二级分类",
                             values = secondaryCategories,
                             valueLabel = Category::name,
                             onAll = { onSecondaryCategory(null) },
                             onSelected = { onSecondaryCategory(it.id) },
-                                    modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f),
                         )
-                            } else {
-                                Spacer(Modifier.weight(1f))
-                            }
-                    }
-                    ValueMenu(
-                        label = state.tags.firstOrNull { it.id == state.query.tagId }?.name ?: "不限标签",
-                        allLabel = "不限标签",
-                        values = state.tags,
-                        valueLabel = Tag::name,
-                        onAll = { onTag(null) },
-                        onSelected = { onTag(it.id) },
-                                modifier = Modifier.fillMaxWidth(),
-                    )
-                        Text("金额", style = MaterialTheme.typography.labelLarge)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AmountMode.entries.forEach { mode ->
-                            FilterChip(
-                                selected = amountMode == mode,
-                                onClick = {
-                                    amountMode = mode
-                                    if (mode != AmountMode.EXACT) exact = ""
-                                    if (mode != AmountMode.RANGE) { minimum = ""; maximum = "" }
-                                    onAmount(exact, minimum, maximum)
-                                },
-                                    modifier = Modifier.weight(1f),
-                                label = { Text(when (mode) { AmountMode.NONE -> "不限"; AmountMode.EXACT -> "精确"; AmountMode.RANGE -> "范围" }) },
-                            )
-                        }
-                    }
-                    if (amountMode == AmountMode.EXACT) {
-                        MoneyField("精确金额", exact) { exact = it; onAmount(exact, "", "") }
-                    }
-                    if (amountMode == AmountMode.RANGE) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            MoneyField("最小金额", minimum, Modifier.weight(1f)) { minimum = it; onAmount("", minimum, maximum) }
-                            MoneyField("最大金额", maximum, Modifier.weight(1f)) { maximum = it; onAmount("", minimum, maximum) }
-                        }
-                    }
-                        Text("日期", style = MaterialTheme.typography.labelLarge)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        DateButton("开始", startDate, Modifier.weight(1f)) { date ->
-                            startDate = date
-                            updateDateRange(startDate, endDate, onDateRange)
-                        }
-                        DateButton("结束", endDate, Modifier.weight(1f)) { date ->
-                            endDate = date
-                            updateDateRange(startDate, endDate, onDateRange)
-                        }
-                    }
-                        if (startDate != null || endDate != null) {
-                            TextButton(onClick = { startDate = null; endDate = null; onDateRange(null) }) { Text("不限日期") }
-                        }
+                        ValueMenu(
+                            label = state.tags.firstOrNull { it.id == state.query.tagId }?.name ?: "所有标签",
+                            allLabel = "所有标签",
+                            values = state.tags,
+                            valueLabel = Tag::name,
+                            onAll = { onTag(null) },
+                            onSelected = { onTag(it.id) },
+                            modifier = Modifier.weight(1f),
+                        )
                     }
                 }
             }
@@ -241,37 +157,78 @@ internal fun SearchScreen(
         state.error?.let { error -> item { Text(error, color = MaterialTheme.colorScheme.error) } }
         if (state.isLoading) item { Text("搜索中…", Modifier.fillMaxWidth().padding(24.dp)) }
         if (!state.isLoading && state.error == null && state.result == null) {
-            item { SearchEmptyState(hasFilters = false, onClear = ::clearFilters, onAddTransaction = onAddTransaction) }
+            item { SearchEmptyState(hasFilters = false, onClear = onClear) }
         }
         state.result?.let { result ->
             item {
-                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp)) {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                ) {
                     Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("收入 ${result.summary.incomeTotal.asRmb()}")
-                        Text("支出 ${result.summary.expenseTotal.asRmb()}")
+                        Text("收入 ${result.summary.incomeTotal.asRmb()}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                        Text("支出 ${result.summary.expenseTotal.asRmb()}", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
             if (result.items.isEmpty()) item {
                 SearchEmptyState(
                     hasFilters = state.query.hasFilters,
-                    onClear = ::clearFilters,
-                    onAddTransaction = onAddTransaction,
+                    onClear = onClear,
                 )
             }
             items(result.items, key = { it.transaction.id }) { item ->
                 Card(
                     Modifier.fillMaxWidth().clickable { onEditTransaction(item.transaction.id) },
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 ) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(item.transaction.categoryName, fontWeight = FontWeight.SemiBold)
-                            Text(item.transaction.amount.asRmb())
+                    Row(
+                        Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(46.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                SvgIcon(
+                                    categoryIconKey(item.transaction.categoryIconKey),
+                                    Modifier.size(26.dp),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
                         }
-                        Text("${item.transaction.ledgerName} · ${item.transaction.accountName}", style = MaterialTheme.typography.bodySmall)
-                        item.transaction.note?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                        if (item.tags.isNotEmpty()) Text(item.tags.joinToString(" · ") { it.name }, style = MaterialTheme.typography.labelSmall)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(item.transaction.categoryDisplayName, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "${item.transaction.ledgerName} · ${item.transaction.accountName}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            item.transaction.note?.takeIf(String::isNotBlank)?.let {
+                                Text(it, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            if (item.tags.isNotEmpty()) {
+                                Text(
+                                    item.tags.joinToString(" · ") { it.name },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                        Text(
+                            item.transaction.amount.asRmb(),
+                            fontWeight = FontWeight.Bold,
+                            color = if (item.transaction.type == TransactionType.EXPENSE) {
+                                MaterialTheme.colorScheme.error
+                            } else MaterialTheme.colorScheme.primary,
+                        )
                     }
                 }
             }
@@ -284,7 +241,6 @@ internal fun SearchScreen(
 private fun SearchEmptyState(
     hasFilters: Boolean,
     onClear: () -> Unit,
-    onAddTransaction: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
@@ -292,64 +248,47 @@ private fun SearchEmptyState(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(if (hasFilters) "没有符合条件的交易" else "还没有可搜索的交易", fontWeight = FontWeight.SemiBold)
-        Text(
-            if (hasFilters) "调整筛选条件，或清除筛选后再试。" else "新增一笔交易后，可按备注、分类或账户检索。",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        if (hasFilters) {
-            TextButton(onClick = onClear) { Text("清除筛选") }
-        } else {
-            Button(onClick = onAddTransaction) { Text("新增交易") }
-        }
+        if (hasFilters) TextButton(onClick = onClear) { Text("清除筛选") }
     }
 }
 
 @Composable
-private fun MoneyField(label: String, value: String, modifier: Modifier = Modifier, onValue: (String) -> Unit) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = { if (it.all { c -> c.isDigit() || c == '.' }) onValue(it) },
-        label = { Text(label) },
-        modifier = modifier,
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-    )
-}
-
-@Composable
-private fun DateButton(label: String, date: LocalDate?, modifier: Modifier, onDate: (LocalDate) -> Unit) {
-    val context = LocalContext.current
-    val initial = date ?: kotlinx.datetime.Clock.System.now().let { it.toLocalDateTime(ChinaTimeZone).date }
-    OutlinedButton(
-        onClick = {
-            DatePickerDialog(
-                context,
-                { _, year, month, day -> onDate(LocalDate(year, month + 1, day)) },
-                initial.year,
-                initial.monthNumber - 1,
-                initial.dayOfMonth,
-            ).show()
-        },
-        modifier = modifier,
-    ) { Text(date?.toString() ?: label) }
-}
-
-private fun updateDateRange(start: LocalDate?, end: LocalDate?, onDateRange: (DateRange?) -> Unit) {
-    if (start == null && end == null) return onDateRange(null)
-    val startValue = start ?: end ?: return
-    val endValue = end ?: startValue
-    val orderedStart = minOf(startValue, endValue)
-    val orderedEnd = maxOf(startValue, endValue)
-    onDateRange(
-        DateRange(
-            orderedStart.atStartOfDayIn(ChinaTimeZone),
-            java.time.LocalDate.of(orderedEnd.year, orderedEnd.monthNumber, orderedEnd.dayOfMonth)
-                .plusDays(1)
-                .let { LocalDate(it.year, it.monthValue, it.dayOfMonth) }
-                .atStartOfDayIn(ChinaTimeZone),
-        ),
-    )
+private fun SearchTypeSelector(selected: TransactionType?, onSelected: (TransactionType?) -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(15.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Row(Modifier.padding(3.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            listOf(null, TransactionType.EXPENSE, TransactionType.INCOME).forEach { type ->
+                val active = selected == type
+                val label = when (type) {
+                    null -> "全部"
+                    TransactionType.EXPENSE -> "支出"
+                    TransactionType.INCOME -> "收入"
+                }
+                Surface(
+                    onClick = { onSelected(type) },
+                    modifier = Modifier.weight(1f).height(42.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (active) MaterialTheme.colorScheme.surface else androidx.compose.ui.graphics.Color.Transparent,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            label,
+                            textAlign = TextAlign.Center,
+                            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                            color = when {
+                                !active -> MaterialTheme.colorScheme.onSurfaceVariant
+                                type == TransactionType.EXPENSE -> MaterialTheme.colorScheme.error
+                                else -> MaterialTheme.colorScheme.primary
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -364,7 +303,14 @@ private fun <T> ValueMenu(
 ) {
     var expanded by remember { mutableStateOf(false) }
     Column(modifier) {
-        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) { Text(label) }
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth().height(44.dp),
+            shape = RoundedCornerShape(13.dp),
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+        ) {
+            Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium)
+        }
         DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(text = { Text(allLabel) }, onClick = { expanded = false; onAll() })
             values.forEach { value ->

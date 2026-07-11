@@ -2,118 +2,190 @@ import SwiftUI
 
 struct SearchView: View {
     @EnvironmentObject private var store: AppStore
-    @State private var advanced = false
-    @State private var hasSearched = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                TextField("备注、分类、账户或标签", text: $store.searchText)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit { store.search(); hasSearched = true }
-                Button { store.search(); hasSearched = true } label: { Image(systemName: "magnifyingglass") }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityLabel("搜索")
-                Button(action: clear) { Image(systemName: "xmark") }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("清除")
-            }
-            .padding(.horizontal)
-            .padding(.top, 10)
-            DisclosureGroup(isExpanded: $advanced) {
+        ScrollView {
+            LazyVStack(spacing: 10) {
+                HStack {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    TextField("关键词、分类、账户或标签", text: $store.searchText)
+                        .textFieldStyle(.plain)
+                        .onSubmit(perform: search)
+                    if !store.searchText.isEmpty {
+                        Button { store.searchText = ""; search() } label: { Image(systemName: "xmark.circle.fill") }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: 44)
+                .liquidGlassSurface(cornerRadius: 18, interactive: true)
+
                 VStack(spacing: 8) {
-                    HStack(spacing: 8) {
-                    Picker("账本", selection: Binding(get: { store.searchLedgerID }, set: store.setSearchLedger)) {
-                        Text("所有账本").tag(String?.none)
-                        ForEach(store.ledgers) { Text($0.name).tag(Optional($0.id)) }
-                    }
-                    .frame(maxWidth: .infinity)
-                    Picker("类型", selection: $store.searchType) {
-                        Text("不限").tag(EntryType?.none)
-                        ForEach(EntryType.allCases) { Text($0.label).tag(Optional($0)) }
-                    }
-                    .frame(maxWidth: .infinity)
-                    }
-                    HStack(spacing: 8) {
-                    Picker("一级分类", selection: $store.searchPrimaryCategoryID) {
-                        Text("不限").tag(String?.none)
-                        ForEach(store.searchCategories.filter { $0.parentID == nil }) { Text($0.name).tag(Optional($0.id)) }
-                    }
-                    .frame(maxWidth: .infinity)
-                    Picker("二级分类", selection: $store.searchSecondaryCategoryID) {
-                        Text("不限").tag(String?.none)
-                        ForEach(store.searchCategories.filter { $0.parentID == store.searchPrimaryCategoryID }) { Text($0.name).tag(Optional($0.id)) }
-                    }
-                    .frame(maxWidth: .infinity)
-                    }
-                    HStack(spacing: 8) {
-                    Picker("标签", selection: $store.searchTagID) {
-                        Text("不限").tag(String?.none)
-                        ForEach(store.searchTags) { Text($0.name).tag(Optional($0.id)) }
-                    }
-                    .frame(maxWidth: .infinity)
-                    Picker("账户", selection: $store.searchAccountID) {
-                        Text("不限").tag(String?.none)
-                        ForEach(store.accounts) { Text($0.name).tag(Optional($0.id)) }
-                    }
-                    .frame(maxWidth: .infinity)
-                    }
-                    HStack(spacing: 8) {
-                        TextField("精确金额", text: $store.searchExact)
-                        TextField("最小金额", text: $store.searchMinimum)
-                        TextField("最大金额", text: $store.searchMaximum)
-                    }
-                    .textFieldStyle(.roundedBorder)
-                    Toggle("日期范围", isOn: $store.searchDateEnabled)
-                    if store.searchDateEnabled {
-                        HStack(spacing: 8) {
-                            DatePicker("开始", selection: $store.searchStartDate, displayedComponents: .date)
-                            DatePicker("结束", selection: $store.searchEndDate, displayedComponents: .date)
-                        }
-                    }
                     HStack {
+                        Text("筛选").font(.subheadline.bold())
                         Spacer()
-                        Button("应用筛选") { store.search(); hasSearched = true }.buttonStyle(.borderedProminent)
-                        Button("重置", action: clear).buttonStyle(.bordered)
+                        if hasFilters { Button("清除", action: clear).buttonStyle(.plain).foregroundStyle(.tint) }
+                    }
+                    Picker("类型", selection: Binding(get: { store.searchType }, set: setType)) {
+                        Text("全部").tag(EntryType?.none)
+                        Text("支出").tag(Optional(EntryType.expense))
+                        Text("收入").tag(Optional(EntryType.income))
+                    }
+                    .pickerStyle(.segmented)
+
+                    HStack(spacing: 8) {
+                        filterMenu(
+                            title: store.searchLedgerID.flatMap { id in store.ledgers.first { $0.id == id }?.name } ?? "所有账本",
+                            allTitle: "所有账本",
+                            values: store.ledgers.map { ($0.id, $0.name) },
+                            onAll: { store.setSearchLedger(nil) },
+                            onSelected: { store.setSearchLedger($0) }
+                        )
+                        filterMenu(
+                            title: store.searchAccountID.flatMap { id in store.accounts.first { $0.id == id }?.name } ?? "所有账户",
+                            allTitle: "所有账户",
+                            values: store.accounts.map { ($0.id, $0.name) },
+                            onAll: { setAccount(nil) },
+                            onSelected: { setAccount($0) }
+                        )
+                    }
+                    HStack(spacing: 6) {
+                        filterMenu(
+                            title: selectedCategoryName(store.searchPrimaryCategoryID) ?? "所有一级分类",
+                            allTitle: "所有一级分类",
+                            values: primaryCategories.map { ($0.id, $0.name) },
+                            onAll: { setPrimary(nil) },
+                            onSelected: { setPrimary($0) }
+                        )
+                        filterMenu(
+                            title: selectedCategoryName(store.searchSecondaryCategoryID) ?? "所有二级分类",
+                            allTitle: "所有二级分类",
+                            values: secondaryCategories.map { ($0.id, $0.name) },
+                            onAll: { setSecondary(nil) },
+                            onSelected: { setSecondary($0) }
+                        )
+                        filterMenu(
+                            title: store.searchTagID.flatMap { id in store.searchTags.first { $0.id == id }?.name } ?? "所有标签",
+                            allTitle: "所有标签",
+                            values: store.searchTags.map { ($0.id, $0.name) },
+                            onAll: { setTag(nil) },
+                            onSelected: { setTag($0) }
+                        )
                     }
                 }
-                .padding(10)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
-            } label: {
-                Label("筛选", systemImage: "slider.horizontal.3")
-                    .font(.subheadline.weight(.semibold))
-            }
-            .padding(10)
-            if store.searchResults.isEmpty {
-                EmptyStateView(
-                    title: hasSearched ? "没有搜索结果" : "还没有可搜索的交易",
-                    systemImage: "magnifyingglass",
-                    detail: hasSearched ? "调整筛选条件后再试" : "新增交易后，可按备注、分类或账户检索",
-                    actionTitle: hasSearched ? "清除筛选" : "新增交易"
-                ) {
-                    if hasSearched { clear() } else { store.startNewTransaction() }
-                }
-            } else {
-                HStack(spacing: 12) {
-                    SummaryCard(title: "支出", value: store.searchExpenseMinor.rmb)
-                    SummaryCard(title: "收入", value: store.searchIncomeMinor.rmb)
-                    SummaryCard(title: "结余", value: (store.searchIncomeMinor - store.searchExpenseMinor).rmb)
-                }
-                .padding(.horizontal)
-                List(store.searchResults) { item in
-                    Button { store.editTransaction(item) } label: { HStack {
-                        VStack(alignment: .leading) {
-                            Text(item.categoryName)
-                            Text("\(item.ledgerName) · \(item.accountName)").font(.caption).foregroundStyle(.secondary)
+                .padding(12)
+                .liquidGlassSurface(cornerRadius: 18)
+
+                if let error = store.error { Text(error).foregroundStyle(.red) }
+                if store.searchResults.isEmpty {
+                    EmptyStateView(
+                        title: hasFilters ? "没有符合条件的交易" : "还没有可搜索的交易",
+                        systemImage: "magnifyingglass",
+                        detail: hasFilters ? "调整筛选条件后再试" : "交易会显示在这里"
+                    )
+                } else {
+                    LiquidGlassContainer(spacing: 12) {
+                        HStack(spacing: 12) {
+                            SummaryCard(title: "收入", value: store.searchIncomeMinor.rmb)
+                            SummaryCard(title: "支出", value: store.searchExpenseMinor.rmb)
                         }
-                        Spacer()
-                        Text(item.amountMinor.rmb)
-                    } }.buttonStyle(.plain)
+                    }
+                    ForEach(store.searchResults) { item in
+                        searchResult(item)
+                    }
                 }
             }
+            .padding()
         }
         .navigationTitle("")
+        .onAppear {
+            store.prepareSearch()
+        }
     }
+
+    private var primaryCategories: [CategoryUI] {
+        store.searchCategories.filter { $0.parentID == nil }
+    }
+
+    private var secondaryCategories: [CategoryUI] {
+        store.searchCategories.filter { category in
+            guard let parentID = category.parentID else { return false }
+            return store.searchPrimaryCategoryID == nil || parentID == store.searchPrimaryCategoryID
+        }
+    }
+
+    private var hasFilters: Bool {
+        !store.searchText.isEmpty || store.searchLedgerID != nil || store.searchType != nil ||
+            store.searchAccountID != nil || store.searchPrimaryCategoryID != nil ||
+            store.searchSecondaryCategoryID != nil || store.searchTagID != nil
+    }
+
+    private func filterMenu(
+        title: String,
+        allTitle: String,
+        values: [(String, String)],
+        onAll: @escaping () -> Void,
+        onSelected: @escaping (String) -> Void
+    ) -> some View {
+        Menu {
+            Button(allTitle, action: onAll)
+            ForEach(values.indices, id: \.self) { index in
+                Button(values[index].1) { onSelected(values[index].0) }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text(title).lineLimit(1).minimumScaleFactor(0.72)
+                Image(systemName: "chevron.down").font(.caption2)
+            }
+            .font(.caption.weight(.medium))
+            .frame(maxWidth: .infinity, minHeight: 34)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+    }
+
+    private func searchResult(_ item: TransactionUI) -> some View {
+        Button { store.showTransactionDetail(item) } label: {
+            HStack(spacing: 12) {
+                SVGIconView(
+                    key: categoryIconAssetKey(item.categoryIconKey ?? "category"),
+                    size: 28,
+                    tint: (AppThemeColor(rawValue: store.themeColor) ?? .lavender).cssColor(for: colorScheme)
+                )
+                    .frame(width: 44, height: 44)
+                    .liquidGlassSurface(cornerRadius: 13, tint: .accentColor)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.categoryDisplayName).fontWeight(.semibold)
+                    Text("\(item.ledgerName) · \(item.accountName)").font(.caption).foregroundStyle(.secondary)
+                    if !item.note.isEmpty { Text(item.note).font(.caption).lineLimit(1) }
+                    if !item.tagNames.isEmpty {
+                        Text(item.tagNames.joined(separator: " · ")).font(.caption2).foregroundStyle(.tint).lineLimit(1)
+                    }
+                }
+                Spacer()
+                Text(item.amountMinor.rmb)
+                    .fontWeight(.bold)
+                    .foregroundStyle(item.type == .expense ? Color.red : Color.accentColor)
+            }
+            .padding(12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .liquidGlassSurface(cornerRadius: 18, interactive: true)
+    }
+
+    private func selectedCategoryName(_ id: String?) -> String? {
+        id.flatMap { selected in store.searchCategories.first { $0.id == selected }?.name }
+    }
+
+    private func search() { store.search() }
+    private func setType(_ value: EntryType?) { store.searchType = value; search() }
+    private func setAccount(_ value: String?) { store.searchAccountID = value; search() }
+    private func setPrimary(_ value: String?) { store.searchPrimaryCategoryID = value; store.searchSecondaryCategoryID = nil; search() }
+    private func setSecondary(_ value: String?) { store.searchSecondaryCategoryID = value; search() }
+    private func setTag(_ value: String?) { store.searchTagID = value; search() }
 
     private func clear() {
         store.searchText = ""
@@ -122,13 +194,6 @@ struct SearchView: View {
         store.searchPrimaryCategoryID = nil
         store.searchSecondaryCategoryID = nil
         store.searchTagID = nil
-        store.searchExact = ""
-        store.searchMinimum = ""
-        store.searchMaximum = ""
-        store.searchDateEnabled = false
-        store.searchResults = []
-        store.searchExpenseMinor = 0
-        store.searchIncomeMinor = 0
-        hasSearched = false
+        store.setSearchLedger(nil)
     }
 }

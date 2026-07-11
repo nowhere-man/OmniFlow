@@ -7,7 +7,6 @@ import com.omniflow.shared.SharedApp
 import com.omniflow.shared.domain.model.Account
 import com.omniflow.shared.domain.model.AccountSummary
 import com.omniflow.shared.domain.model.AccountType
-import com.omniflow.shared.domain.model.AmountFilter
 import com.omniflow.shared.domain.model.AnalyticsDashboardState
 import com.omniflow.shared.domain.model.AnalyticsQuery
 import com.omniflow.shared.domain.model.AppPreferences
@@ -56,6 +55,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
@@ -108,10 +108,25 @@ data class SearchUiState(
     val accounts: List<Account> = emptyList(),
     val categories: List<Category> = emptyList(),
     val tags: List<Tag> = emptyList(),
-    val isAdvancedExpanded: Boolean = true,
     val isLoading: Boolean = false,
     val error: String? = null,
 )
+
+data class TransactionRecordDetailUiState(
+    val transaction: Transaction? = null,
+    val ledgerName: String = "",
+    val accountName: String = "",
+    val primaryCategoryName: String = "",
+    val secondaryCategoryName: String? = null,
+    val categoryIconKey: String? = null,
+    val tagNames: List<String> = emptyList(),
+    val isLoading: Boolean = false,
+    val isDeleting: Boolean = false,
+    val error: String? = null,
+) {
+    val isVisible: Boolean get() = isLoading || transaction != null || error != null
+    val categoryDisplayName: String get() = secondaryCategoryName?.let { "$primaryCategoryName-$it" } ?: primaryCategoryName
+}
 
 data class TransactionEditorUiState(
     val editingId: String? = null,
@@ -168,6 +183,9 @@ class OmniFlowViewModel(
     val analyticsUiState: StateFlow<AnalyticsUiState> = _analyticsUiState.asStateFlow()
     private val _searchUiState = MutableStateFlow(SearchUiState())
     val searchUiState: StateFlow<SearchUiState> = _searchUiState.asStateFlow()
+    private val _transactionRecordDetailUiState = MutableStateFlow(TransactionRecordDetailUiState())
+    val transactionRecordDetailUiState: StateFlow<TransactionRecordDetailUiState> =
+        _transactionRecordDetailUiState.asStateFlow()
     private val _transactionUiState = MutableStateFlow(TransactionEditorUiState())
     val transactionUiState: StateFlow<TransactionEditorUiState> = _transactionUiState.asStateFlow()
     private val _moreUiState = MutableStateFlow(MoreUiState())
@@ -209,6 +227,7 @@ class OmniFlowViewModel(
                 _homeUiState.value = _homeUiState.value.copy(ledgers = ledgers)
                 _analyticsUiState.value = _analyticsUiState.value.copy(ledgers = ledgers)
                 _searchUiState.value = _searchUiState.value.copy(ledgers = ledgers)
+                if (_searchUiState.value.query.scope == LedgerScope.All) observeSearchFilters(LedgerScope.All)
                 _transactionUiState.value = _transactionUiState.value.copy(ledgers = ledgers)
                 val previousSelection = _moreUiState.value.selectedLedgerId
                 val selected = previousSelection?.takeIf { id -> ledgers.any { it.id == id } }
@@ -468,19 +487,6 @@ class OmniFlowViewModel(
     )
     fun setSearchTag(tagId: String?) = updateSearch(_searchUiState.value.query.copy(tagId = tagId))
     fun setSearchAccount(accountId: String?) = updateSearch(_searchUiState.value.query.copy(accountId = accountId))
-    fun setSearchAmount(exact: String = "", minimum: String = "", maximum: String = "") {
-        updateSearch(_searchUiState.value.query.copy(
-            amount = AmountFilter(
-                exact = exact.toMoneyOrNull(),
-                minimum = minimum.toMoneyOrNull(),
-                maximum = maximum.toMoneyOrNull(),
-            ),
-        ))
-    }
-    fun setSearchDateRange(range: DateRange?) = updateSearch(_searchUiState.value.query.copy(dateRange = range))
-    fun toggleAdvancedSearch() {
-        _searchUiState.value = _searchUiState.value.copy(isAdvancedExpanded = !_searchUiState.value.isAdvancedExpanded)
-    }
     fun clearSearch() {
         searchCategoriesJob?.cancel()
         searchTagsJob?.cancel()
@@ -491,6 +497,7 @@ class OmniFlowViewModel(
             tags = emptyList(),
             error = null,
         )
+        observeSearchFilters(LedgerScope.All)
     }
 
     private fun updateSearch(query: TransactionSearchQuery) {
@@ -509,18 +516,85 @@ class OmniFlowViewModel(
     private fun observeSearchFilters(scope: LedgerScope) {
         searchCategoriesJob?.cancel()
         searchTagsJob?.cancel()
-        val ledgerId = (scope as? LedgerScope.Single)?.ledgerId ?: run {
+        val ledgerIds = when (scope) {
+            LedgerScope.All -> _searchUiState.value.ledgers.map { it.id }
+            is LedgerScope.Single -> listOf(scope.ledgerId)
+        }
+        if (ledgerIds.isEmpty()) {
             _searchUiState.value = _searchUiState.value.copy(categories = emptyList(), tags = emptyList())
             return
         }
         searchCategoriesJob = viewModelScope.launch {
-            sharedApp.management.observeCategories(ledgerId).collect { result ->
-                _searchUiState.value = _searchUiState.value.copy(categories = result.getOrDefault(emptyList()))
+            val categoriesByLedger = mutableMapOf<String, List<Category>>()
+            ledgerIds.forEach { ledgerId ->
+                launch {
+                    sharedApp.management.observeCategories(ledgerId).collect { result ->
+                        categoriesByLedger[ledgerId] = result.getOrDefault(emptyList())
+                        _searchUiState.value = _searchUiState.value.copy(
+                            categories = ledgerIds.flatMap { categoriesByLedger[it].orEmpty() },
+                        )
+                    }
+                }
             }
         }
         searchTagsJob = viewModelScope.launch {
-            sharedApp.management.observeTags(ledgerId).collect { result ->
-                _searchUiState.value = _searchUiState.value.copy(tags = result.getOrDefault(emptyList()))
+            val tagsByLedger = mutableMapOf<String, List<Tag>>()
+            ledgerIds.forEach { ledgerId ->
+                launch {
+                    sharedApp.management.observeTags(ledgerId).collect { result ->
+                        tagsByLedger[ledgerId] = result.getOrDefault(emptyList())
+                        _searchUiState.value = _searchUiState.value.copy(
+                            tags = ledgerIds.flatMap { tagsByLedger[it].orEmpty() },
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun showTransactionRecordDetail(transactionId: String) {
+        _transactionRecordDetailUiState.value = TransactionRecordDetailUiState(isLoading = true)
+        viewModelScope.launch {
+            val result = sharedApp.getTransaction(transactionId)
+            val transaction = result.getOrNull()
+            if (transaction == null) {
+                _transactionRecordDetailUiState.value = TransactionRecordDetailUiState(
+                    error = result.exceptionOrNull()?.message ?: "交易不存在或已删除",
+                )
+                return@launch
+            }
+            val categories = sharedApp.management.observeCategories(transaction.ledgerId).first().getOrDefault(emptyList())
+            val tags = sharedApp.management.observeTags(transaction.ledgerId).first().getOrDefault(emptyList())
+            val selectedCategory = categories.firstOrNull { it.id == transaction.categoryId }
+            val primaryCategory = selectedCategory?.parentId?.let { parentId -> categories.firstOrNull { it.id == parentId } }
+                ?: selectedCategory
+            _transactionRecordDetailUiState.value = TransactionRecordDetailUiState(
+                transaction = transaction,
+                ledgerName = _searchUiState.value.ledgers.firstOrNull { it.id == transaction.ledgerId }?.name ?: "未知账本",
+                accountName = _searchUiState.value.accounts.firstOrNull { it.id == transaction.accountId }?.name ?: "未知账户",
+                primaryCategoryName = primaryCategory?.name ?: "未分类",
+                secondaryCategoryName = selectedCategory?.takeIf { it.parentId != null }?.name,
+                categoryIconKey = primaryCategory?.iconKey ?: selectedCategory?.iconKey,
+                tagNames = tags.filter { it.id in transaction.tagIds }.map { it.name },
+            )
+        }
+    }
+
+    fun dismissTransactionRecordDetail() {
+        _transactionRecordDetailUiState.value = TransactionRecordDetailUiState()
+    }
+
+    fun deleteTransactionRecordDetail() {
+        val transaction = _transactionRecordDetailUiState.value.transaction ?: return
+        _transactionRecordDetailUiState.value = _transactionRecordDetailUiState.value.copy(isDeleting = true, error = null)
+        viewModelScope.launch {
+            sharedApp.deleteTransaction(transaction.id).onSuccess {
+                dismissTransactionRecordDetail()
+            }.onFailure { error ->
+                _transactionRecordDetailUiState.value = _transactionRecordDetailUiState.value.copy(
+                    isDeleting = false,
+                    error = error.message,
+                )
             }
         }
     }
@@ -624,7 +698,7 @@ class OmniFlowViewModel(
     fun pressAmountKey(key: String) {
         val current = _transactionUiState.value.amountInput
         val updated = when (key) {
-            "⌫" -> current.dropLast(1)
+            "退格" -> current.dropLast(1)
             "+", "-" -> if (current.isNotEmpty() && current.last() !in "+-") current + key else current
             "." -> if (current.substringAfterLast('+').substringAfterLast('-').contains('.')) current else current + key
             else -> current + key
@@ -672,8 +746,10 @@ class OmniFlowViewModel(
                 )
             }
             result.onSuccess {
-                if (saveAgain && existing == null) {
+                if (saveAgain) {
+                    editingTransaction = null
                     _transactionUiState.value = state.copy(
+                        editingId = null,
                         amountInput = "",
                         categoryId = null,
                         selectedTagIds = emptySet(),
@@ -686,16 +762,6 @@ class OmniFlowViewModel(
                 }
             }.onFailure { error ->
                 _transactionUiState.value = state.copy(isSaving = false, error = error.message)
-            }
-        }
-    }
-    fun deleteEditingTransaction() {
-        val id = _transactionUiState.value.editingId ?: return
-        viewModelScope.launch {
-            sharedApp.deleteTransaction(id).onSuccess {
-                _transactionUiState.value = _transactionUiState.value.copy(completed = true)
-            }.onFailure { error ->
-                _transactionUiState.value = _transactionUiState.value.copy(error = error.message)
             }
         }
     }
@@ -1082,11 +1148,6 @@ private fun analyticsRange(mode: AnalyticsRangeMode, anchor: LocalDate): DateRan
 
 private fun javaDate(date: LocalDate) = JavaLocalDate.of(date.year, date.monthNumber, date.dayOfMonth)
 private fun JavaLocalDate.toKotlinDate() = LocalDate(year, monthValue, dayOfMonth)
-
-private fun String.toMoneyOrNull(): Money? {
-    if (isBlank()) return null
-    return decimalMinor(trim())?.let(::Money)
-}
 
 private fun Money.toInputString(): String = "${minor / 100}.${kotlin.math.abs(minor % 100).toString().padStart(2, '0')}"
 

@@ -33,7 +33,7 @@ struct HomeView: View {
                         store.startNewTransaction(ledgerID: store.selectedLedgerID)
                     }
                 } else {
-                    TransactionGroupsView(items: store.transactions, displayMode: store.transactionDisplayMode) { store.editTransaction($0) }
+                    TransactionGroupsView(items: store.transactions, displayMode: store.transactionDisplayMode) { store.showTransactionDetail($0) }
                 }
                 if let error = store.error { Text(error).foregroundStyle(.red) }
             }
@@ -108,13 +108,13 @@ private struct HomeCalendarView: View {
                                 .foregroundStyle(isToday ? Color.white : Color.primary)
                                 .frame(width: 28, height: 28)
                                 .background(isToday ? Color.accentColor : .clear, in: Circle())
-                            if let summary {
-                                if summary.incomeMinor > 0 { Text("+\(compact(summary.incomeMinor))").foregroundStyle(.secondary) }
-                                if summary.expenseMinor > 0 { Text("-\(compact(summary.expenseMinor))").foregroundStyle(.secondary) }
+                            if let display = summary?.displayAmount(filter: store.calendarFilter) {
+                                Text("\(display.income ? "+" : "-")\(compact(display.amount))")
+                                    .foregroundStyle(display.income ? Color.accentColor : Color.red)
                             }
                         }
                         .font(.caption2)
-                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .frame(maxWidth: .infinity, minHeight: 56)
                     }
                     .buttonStyle(.plain)
                 }
@@ -136,19 +136,29 @@ private struct HomeCalendarView: View {
 
 private struct DateTransactionDetailView: View {
     @EnvironmentObject private var store: AppStore
+    @State private var displayMode: TransactionDisplayMode = .card
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("支出 \(store.dateDetailExpenseMinor.rmb) · 收入 \(store.dateDetailIncomeMinor.rmb)")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 18) {
+                        Text("支出 \(store.dateDetailExpenseMinor.wholeRmb)")
+                        Text("收入 \(store.dateDetailIncomeMinor.wholeRmb)")
+                        Spacer()
+                        Button(displayMode.label) {
+                            displayMode = displayMode == .card ? .list : .card
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
                     if store.dateDetailTransactions.isEmpty {
                         EmptyStateView(title: "当天暂无明细", systemImage: "calendar", detail: "这一天没有记录")
                     } else {
-                        TransactionCollectionView(items: store.dateDetailTransactions, displayMode: store.transactionDisplayMode) { item in
-                            store.editTransaction(item)
+                        TransactionCollectionView(items: store.dateDetailTransactions, displayMode: displayMode) { item in
+                            store.showTransactionDetail(item)
                             store.dismissDateDetail()
                         }
                     }
@@ -175,7 +185,7 @@ private struct TransactionGroupsView: View {
                 HStack {
                     Text(group.date.formatted(date: .abbreviated, time: .omitted)).font(.headline)
                     Spacer()
-                    Text(group.netMinor.rmb)
+                    Text(group.netMinor.wholeRmb)
                         .foregroundStyle(.secondary)
                 }
                 TransactionCollectionView(items: group.items, displayMode: displayMode, onEdit: onEdit)
@@ -216,15 +226,21 @@ private struct TransactionCollectionView: View {
 }
 
 private struct TransactionRow: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.colorScheme) private var colorScheme
     let item: TransactionUI
     let onEdit: (TransactionUI) -> Void
 
     var body: some View {
         Button { onEdit(item) } label: {
             HStack {
-                SVGIconView(key: categoryIconAssetKey(item.categoryIconKey ?? (item.type == .expense ? "shopping-bag" : "banknote")), size: 28)
+                SVGIconView(
+                    key: categoryIconAssetKey(item.categoryIconKey ?? (item.type == .expense ? "shopping-bag" : "banknote")),
+                    size: 28,
+                    tint: (AppThemeColor(rawValue: store.themeColor) ?? .lavender).cssColor(for: colorScheme)
+                )
                 VStack(alignment: .leading) {
-                    Text(item.categoryName).fontWeight(.medium)
+                    Text(item.categoryDisplayName).fontWeight(.medium)
                     Text("\(item.accountName) · \(item.note)").font(.caption).foregroundStyle(.secondary).lineLimit(2)
                 }
                 Spacer()
@@ -237,7 +253,7 @@ private struct TransactionRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .liquidGlassSurface(cornerRadius: 14, interactive: true)
     }
 }
 
@@ -280,7 +296,7 @@ struct SummaryCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .liquidGlassSurface(cornerRadius: 16)
     }
 }
 
@@ -288,18 +304,20 @@ private struct CalendarFilterPicker: View {
     @EnvironmentObject private var store: AppStore
 
     var body: some View {
-        HStack(spacing: 4) {
-            filterButton("ALL", "list.bullet", "全部")
-            filterButton("INCOME", "plus", "收入")
-            filterButton("EXPENSE", "minus", "支出")
+        LiquidGlassContainer(spacing: 4) {
+            HStack(spacing: 4) {
+                filterButton("ALL", "list.bullet", "全部")
+                filterButton("INCOME", "plus", "收入")
+                filterButton("EXPENSE", "minus", "支出")
+            }
         }
     }
 
     private func filterButton(_ value: String, _ systemImage: String, _ label: String) -> some View {
         Button { store.setCalendarFilter(value) } label: {
             Image(systemName: systemImage)
-                .frame(width: 40, height: 40)
-                .background(store.calendarFilter == value ? Color.accentColor.opacity(0.18) : .clear, in: Circle())
+                .frame(width: 34, height: 34)
+                .liquidGlassCircle(interactive: true, tint: store.calendarFilter == value ? .accentColor : nil)
         }
         .buttonStyle(.plain)
         .foregroundStyle(store.calendarFilter == value ? Color.accentColor : Color.secondary)
@@ -322,9 +340,9 @@ private struct MonthlyBalanceCard: View {
             }
             .font(.subheadline)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(.primary)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8))
+        .liquidGlassSurface(cornerRadius: 18, tint: .accentColor)
     }
 }

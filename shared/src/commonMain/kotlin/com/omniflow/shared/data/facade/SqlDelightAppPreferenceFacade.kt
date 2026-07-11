@@ -61,7 +61,7 @@ class SqlDelightAppPreferenceFacade(
             ?: AppearanceMode.SYSTEM,
         themeColor = values[AppPreferenceKey.ThemeColor]
             ?.let { runCatching { ThemeColor.valueOf(it) }.getOrNull() }
-            ?: ThemeColor.GRAPHITE,
+            ?: ThemeColor.LAVENDER,
         appLockEnabled = values[AppPreferenceKey.AppLockEnabled]?.toBooleanStrictOrNull() ?: false,
         syncTarget = values[AppPreferenceKey.SyncTarget]
             ?.let { runCatching { SyncTarget.valueOf(it) }.getOrNull() },

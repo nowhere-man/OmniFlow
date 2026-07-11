@@ -6,8 +6,15 @@
     <key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
     <key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.0</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>0.2.0</string>
+    <key>CFBundleVersion</key><string>2</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key><string>com.omniflow.ios</string>
+            <key>CFBundleURLSchemes</key><array><string>omniflow</string></array>
+        </dict>
+    </array>
     <key>LSRequiresIPhoneOS</key><true/>
     <key>NSFaceIDUsageDescription</key><string>用于解锁 OmniFlow 并保护本机账目。</string>
     <key>UILaunchScreen</key><dict/>

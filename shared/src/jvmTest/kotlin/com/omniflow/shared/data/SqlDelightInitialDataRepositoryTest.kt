@@ -6,7 +6,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 
 class SqlDelightInitialDataRepositoryTest {
     @Test
@@ -19,11 +18,12 @@ class SqlDelightInitialDataRepositoryTest {
         repository.seedIfNeeded()
         repository.seedIfNeeded()
 
+        val ledger = database.ledgerQueries.activeLedgers().executeAsOne()
         assertEquals(1, database.ledgerQueries.activeLedgers().executeAsList().size)
         assertEquals(16, database.categoryQueries.activeCategoriesForLedger(
-            database.ledgerQueries.activeLedgers().executeAsOne().id,
+            ledger.id,
         ).executeAsList().size)
         assertEquals(7, database.accountQueries.activeAccounts().executeAsList().size)
-        assertNull(database.appPreferenceQueries.preference("default_ledger_id").executeAsOneOrNull())
+        assertEquals(ledger.id, database.appPreferenceQueries.preference("default_ledger_id").executeAsOne())
     }
 }

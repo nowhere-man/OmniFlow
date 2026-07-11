@@ -13,10 +13,10 @@ struct MoreView: View {
                     Label(store.backups.isEmpty ? "尚未同步" : "最近同步 \(store.backups.first?.createdAt ?? "")", systemImage: "arrow.triangle.2.circlepath")
                         .font(.caption)
                 }
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
-                .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8))
+                .liquidGlassSurface(cornerRadius: 18, tint: .accentColor)
                 ModuleSection(title: "数据", modules: [("数据管理", "arrow.triangle.2.circlepath"), ("导入", "square.and.arrow.down"), ("导出", "square.and.arrow.up"), ("设置", "gearshape")])
                 ModuleSection(title: "账本与账户", modules: [("账本", "books.vertical"), ("账户", "wallet.pass"), ("资产", "chart.pie"), ("分类管理", "square.grid.2x2"), ("标签管理", "tag")])
                 ModuleSection(title: "自动化", modules: [("规则", "list.bullet.rectangle"), ("提醒", "bell")])
@@ -38,7 +38,12 @@ private struct ModuleSection: View {
             VStack(spacing: 0) {
                 ForEach(modules, id: \.0) { module in
                     NavigationLink { ModuleView(title: module.0) } label: {
-                        Label(module.0, systemImage: module.1)
+                        HStack(spacing: 12) {
+                            Image(systemName: module.1)
+                                .frame(width: 24)
+                                .foregroundStyle(.tint)
+                            Text(module.0).foregroundStyle(.primary)
+                        }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 12)
@@ -47,7 +52,7 @@ private struct ModuleSection: View {
                     if module.0 != modules.last?.0 { Divider() }
                 }
             }
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+            .liquidGlassSurface(cornerRadius: 16)
         }
     }
 }
@@ -647,10 +652,10 @@ private struct CategoryIconOptionButton: View {
                 Text(option.label).font(.caption2).lineLimit(1)
             }
             .frame(maxWidth: .infinity, minHeight: 58)
-            .background(selected ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
             .overlay { RoundedRectangle(cornerRadius: 10).stroke(selected ? Color.accentColor : .clear, lineWidth: 1.5) }
         }
         .buttonStyle(.plain)
+        .liquidGlassSurface(cornerRadius: 10, interactive: true, tint: selected ? .accentColor : nil)
         .accessibilityLabel(option.label)
     }
 }

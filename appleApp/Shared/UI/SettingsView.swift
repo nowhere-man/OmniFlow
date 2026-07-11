@@ -1,9 +1,10 @@
+import Foundation
 import SwiftUI
 
 enum AppThemeColor: String, CaseIterable, Identifiable {
+    case lavender = "LAVENDER"
     case mistBlue = "MIST_BLUE"
     case sage = "SAGE"
-    case lavender = "LAVENDER"
     case softCoral = "SOFT_CORAL"
     case warmAmber = "WARM_AMBER"
     case graphite = "GRAPHITE"
@@ -22,26 +23,33 @@ enum AppThemeColor: String, CaseIterable, Identifiable {
     }
 
     func color(for scheme: ColorScheme) -> Color {
-        let hex: UInt32
-        switch (self, scheme) {
-        case (.mistBlue, .dark): hex = 0x9CC3E5
-        case (.mistBlue, _): hex = 0x52779A
-        case (.sage, .dark): hex = 0x9BC8A8
-        case (.sage, _): hex = 0x4F765B
-        case (.lavender, .dark): hex = 0xC2B5E5
-        case (.lavender, _): hex = 0x75679D
-        case (.softCoral, .dark): hex = 0xE7AAA4
-        case (.softCoral, _): hex = 0xA95850
-        case (.warmAmber, .dark): hex = 0xD8B778
-        case (.warmAmber, _): hex = 0x8A6532
-        case (.graphite, .dark): hex = 0xF5F5F5
-        case (.graphite, _): hex = 0x171717
-        }
+        let hex = hexValue(for: scheme)
         return Color(
             red: Double((hex >> 16) & 0xFF) / 255,
             green: Double((hex >> 8) & 0xFF) / 255,
             blue: Double(hex & 0xFF) / 255
         )
+    }
+
+    func cssColor(for scheme: ColorScheme) -> String {
+        String(format: "#%06X", hexValue(for: scheme))
+    }
+
+    private func hexValue(for scheme: ColorScheme) -> UInt32 {
+        switch (self, scheme) {
+        case (.mistBlue, .dark): return 0x9CC3E5
+        case (.mistBlue, _): return 0x52779A
+        case (.sage, .dark): return 0x9BC8A8
+        case (.sage, _): return 0x4F765B
+        case (.lavender, .dark): return 0xC2B5E5
+        case (.lavender, _): return 0x75679D
+        case (.softCoral, .dark): return 0xE7AAA4
+        case (.softCoral, _): return 0xA95850
+        case (.warmAmber, .dark): return 0xD8B778
+        case (.warmAmber, _): return 0x8A6532
+        case (.graphite, .dark): return 0xF5F5F5
+        case (.graphite, _): return 0x171717
+        }
     }
 }
 
@@ -50,7 +58,7 @@ struct AppThemeTintModifier: ViewModifier {
     let themeColor: String
 
     func body(content: Content) -> some View {
-        content.tint((AppThemeColor(rawValue: themeColor) ?? .graphite).color(for: colorScheme))
+        content.tint((AppThemeColor(rawValue: themeColor) ?? .lavender).color(for: colorScheme))
     }
 }
 
@@ -80,13 +88,13 @@ struct SettingsView: View {
                                 VStack(spacing: 6) {
                                     Circle()
                                         .fill(theme.color(for: .light))
-                                        .frame(width: 46, height: 46)
+                                        .frame(width: 36, height: 36)
                                         .overlay {
                                             Circle().stroke(store.themeColor == theme.rawValue ? Color.primary : .clear, lineWidth: 3)
                                         }
                                     Text(theme.label).font(.caption).foregroundStyle(.primary)
                                 }
-                                .frame(width: 64)
+                                .frame(width: 58)
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(theme.label)

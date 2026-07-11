@@ -5,34 +5,35 @@ struct PhoneRootView: View {
     @EnvironmentObject private var store: AppStore
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            TabView(selection: Binding(
-                get: { store.destination == .transaction ? .home : store.destination },
-                set: { store.destination = $0 }
-            )) {
-                NavigationStack { HomeView() }.tabItem { Label("首页", systemImage: "house") }.tag(MainDestination.home)
-                NavigationStack { AnalyticsView() }.tabItem { Label("统计", systemImage: "chart.bar") }.tag(MainDestination.analytics)
-                NavigationStack { SearchView() }.tabItem { Label("搜索", systemImage: "magnifyingglass") }.tag(MainDestination.search)
-                NavigationStack { MoreView() }.tabItem { Label("更多", systemImage: "ellipsis.circle") }.tag(MainDestination.more)
-            }
-            Button { store.startNewTransaction() } label: {
-                Image(systemName: "plus")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 52, height: 52)
-                    .background(Color.accentColor, in: Circle())
-            }
-            .accessibilityLabel("新增交易")
-            .offset(y: -26)
+        TabView(selection: $store.destination) {
+            NavigationStack { HomeView() }
+                .tabItem { Label("首页", systemImage: "house") }
+                .tag(MainDestination.home)
+            NavigationStack { AnalyticsView() }
+                .tabItem { Label("统计", systemImage: "chart.bar") }
+                .tag(MainDestination.analytics)
+            Color.clear
+                .tabItem { Label("记账", systemImage: "plus") }
+                .tag(MainDestination.transaction)
+            NavigationStack { SearchView() }
+                .tabItem { Label("搜索", systemImage: "magnifyingglass") }
+                .tag(MainDestination.search)
+            NavigationStack { MoreView() }
+                .tabItem { Label("更多", systemImage: "ellipsis.circle") }
+                .tag(MainDestination.more)
         }
-        .fullScreenCover(isPresented: Binding(
+        .sheet(isPresented: Binding(
             get: { store.destination == .transaction },
             set: { if !$0 { store.destination = .home } }
         )) {
             NavigationStack {
                 TransactionEditorView()
-                    .toolbar { ToolbarItem(placement: .topBarLeading) { Button("关闭") { store.destination = .home } } }
             }
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $store.selectedTransactionDetail) { transaction in
+            TransactionDetailView(transaction: transaction)
+                .environmentObject(store)
         }
     }
 }
@@ -73,6 +74,10 @@ struct MacRootView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .sheet(item: $store.selectedTransactionDetail) { transaction in
+            TransactionDetailView(transaction: transaction)
+                .environmentObject(store)
         }
     }
 }

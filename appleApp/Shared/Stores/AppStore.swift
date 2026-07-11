@@ -34,6 +34,7 @@ final class AppStore: ObservableObject {
     @Published var searchResults: [TransactionUI] = []
     @Published var searchExpenseMinor: Int64 = 0
     @Published var searchIncomeMinor: Int64 = 0
+    @Published var selectedTransactionDetail: TransactionUI?
     @Published var editingTransaction: TransactionUI?
     @Published var editingTagIDs: Set<String> = []
     @Published var draftTransactionDate: Date?
@@ -46,12 +47,6 @@ final class AppStore: ObservableObject {
     @Published var searchTagID: String?
     @Published var searchCategories: [CategoryUI] = []
     @Published var searchTags: [TagUI] = []
-    @Published var searchExact = ""
-    @Published var searchMinimum = ""
-    @Published var searchMaximum = ""
-    @Published var searchDateEnabled = false
-    @Published var searchStartDate = Date()
-    @Published var searchEndDate = Date()
     @Published var importItems: [ImportItemUI] = []
     @Published var importSessionID: String?
     @Published var importProgress: Double = 0
@@ -59,15 +54,13 @@ final class AppStore: ObservableObject {
     @Published var selectedImportItemIDs: Set<String> = []
     @Published var appLockEnabled = false
     @Published var appearanceMode = "SYSTEM"
-    @Published var themeColor = "GRAPHITE"
+    @Published var themeColor = "LAVENDER"
     @Published var analyticsExpenseMinor: Int64 = 0
     @Published var analyticsIncomeMinor: Int64 = 0
-    @Published var analyticsPreviousExpenseChange: Int64 = 0
-    @Published var analyticsPreviousIncomeChange: Int64 = 0
-    @Published var analyticsPreviousNetChange: Int64 = 0
-    @Published var analyticsYearExpenseChange: Int64 = 0
-    @Published var analyticsYearIncomeChange: Int64 = 0
-    @Published var analyticsYearNetChange: Int64 = 0
+    @Published var analyticsPreviousExpenseMinor: Int64 = 0
+    @Published var analyticsPreviousIncomeMinor: Int64 = 0
+    @Published var analyticsYearPreviousExpenseMinor: Int64 = 0
+    @Published var analyticsYearPreviousIncomeMinor: Int64 = 0
     @Published var analyticsPoints: [AnalyticsPointUI] = []
     @Published var analyticsRanking: [TransactionUI] = []
     @Published var analyticsCategories: [CategoryShareUI] = []
@@ -87,8 +80,9 @@ final class AppStore: ObservableObject {
     private var categorySubscription: AppleFlowSubscription?
     private var tagSubscription: AppleFlowSubscription?
     private var ruleSubscription: AppleFlowSubscription?
-    private var searchCategorySubscription: AppleFlowSubscription?
-    private var searchTagSubscription: AppleFlowSubscription?
+    private var searchResourceSubscriptions: [AppleFlowSubscription] = []
+    private var searchCategoriesByLedger: [String: [CategoryUI]] = [:]
+    private var searchTagsByLedger: [String: [TagUI]] = [:]
     private var dateDetailSubscription: AppleFlowSubscription?
     private var importSubscription: AppleFlowSubscription?
     private var backupObjects: [RemoteBackupMeta] = []
@@ -141,15 +135,13 @@ final class AppStore: ObservableObject {
                 self?.error = message
                 self?.analyticsExpenseMinor = value?.summary.expenseTotal ?? 0
                 self?.analyticsIncomeMinor = value?.summary.incomeTotal ?? 0
-                self?.analyticsPreviousExpenseChange = value?.previousPeriod.expenseChange ?? 0
-                self?.analyticsPreviousIncomeChange = value?.previousPeriod.incomeChange ?? 0
-                self?.analyticsPreviousNetChange = value?.previousPeriod.netIncomeChange ?? 0
-                self?.analyticsYearExpenseChange = value?.yearOverYear.expenseChange ?? 0
-                self?.analyticsYearIncomeChange = value?.yearOverYear.incomeChange ?? 0
-                self?.analyticsYearNetChange = value?.yearOverYear.netIncomeChange ?? 0
+                self?.analyticsPreviousExpenseMinor = value?.previousPeriod.previous.expenseTotal ?? 0
+                self?.analyticsPreviousIncomeMinor = value?.previousPeriod.previous.incomeTotal ?? 0
+                self?.analyticsYearPreviousExpenseMinor = value?.yearOverYear.previous.expenseTotal ?? 0
+                self?.analyticsYearPreviousIncomeMinor = value?.yearOverYear.previous.incomeTotal ?? 0
                 self?.analyticsPoints = value?.trend.points.map { AnalyticsPointUI(label: $0.label, expense: $0.expense, income: $0.income) } ?? []
-                self?.analyticsRanking = value?.ranking.map { Self.transaction($0.transaction) } ?? []
-                self?.analyticsCategories = value?.categoryShares.map { CategoryShareUI(id: $0.categoryId, name: $0.categoryName, amount: $0.amount) } ?? []
+                self?.analyticsRanking = value?.ranking.map { Self.transaction($0.transaction, tagNames: $0.tags.map { $0.name }) } ?? []
+                self?.analyticsCategories = value?.categoryShares.map { CategoryShareUI(id: $0.categoryId, name: $0.categoryName, iconKey: $0.iconKey, amount: $0.amount) } ?? []
                 self?.analyticsTags = value?.tagSummary.map { TagSummaryUI(id: $0.tag.id, name: $0.tag.name, expense: $0.expense, income: $0.income) } ?? []
                 self?.analyticsAccountAssets = value?.accountAssets.map { AccountAssetUI(id: $0.accountId, name: $0.accountName, balance: $0.balance) } ?? []
                 self?.analyticsAccountSummary = (value?.accountSummary.assets ?? 0, value?.accountSummary.liabilities ?? 0)
@@ -261,15 +253,15 @@ final class AppStore: ObservableObject {
             primaryCategoryId: searchPrimaryCategoryID,
             secondaryCategoryId: searchSecondaryCategoryID,
             tagId: searchTagID,
-            exactMinor: Self.boxedLong(Self.minor(searchExact)),
-            minimumMinor: Self.boxedLong(searchExact.isEmpty ? Self.minor(searchMinimum) : nil),
-            maximumMinor: Self.boxedLong(searchExact.isEmpty ? Self.minor(searchMaximum) : nil),
-            startMillis: Self.boxedLong(searchDateEnabled ? Int64(Calendar.current.startOfDay(for: min(searchStartDate, searchEndDate)).timeIntervalSince1970 * 1000) : nil),
-            endMillis: Self.boxedLong(searchDateEnabled ? Int64((Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: max(searchStartDate, searchEndDate))) ?? searchEndDate).timeIntervalSince1970 * 1000) : nil)
+            exactMinor: nil,
+            minimumMinor: nil,
+            maximumMinor: nil,
+            startMillis: nil,
+            endMillis: nil
         ) { [weak self] result, message in
             Task { @MainActor in
                 self?.error = message
-                self?.searchResults = result?.items.map { Self.transaction($0.transaction) } ?? []
+                self?.searchResults = result?.items.map { Self.transaction($0.transaction, tagNames: $0.tags.map { $0.name }) } ?? []
                 self?.searchExpenseMinor = result?.summary.expenseTotal ?? 0
                 self?.searchIncomeMinor = result?.summary.incomeTotal ?? 0
             }
@@ -284,29 +276,75 @@ final class AppStore: ObservableObject {
         searchPrimaryCategoryID = nil
         searchSecondaryCategoryID = nil
         searchTagID = nil
-        guard let id else { searchCategories = []; searchTags = []; search(); return }
-        #if canImport(OmniFlowShared)
-        searchCategorySubscription?.cancel()
-        searchTagSubscription?.cancel()
-        searchCategorySubscription = bridge.watchCategories(ledgerId: id) { [weak self] values, message in
-            Task { @MainActor in
-                self?.error = message
-                self?.searchCategories = values?.map {
-                    CategoryUI(
-                        id: $0.id,
-                        name: $0.name,
-                        type: String(describing: $0.type).contains("INCOME") ? .income : .expense,
-                        parentID: $0.parentId,
-                        iconKey: $0.iconKey
-                    )
-                } ?? []
-            }
-        }
-        searchTagSubscription = bridge.watchTags(ledgerId: id) { [weak self] values, message in
-            Task { @MainActor in self?.error = message; self?.searchTags = values?.map { TagUI(id: $0.id, name: $0.name) } ?? [] }
-        }
-        #endif
+        observeSearchResources()
         search()
+    }
+
+    func prepareSearch() {
+        observeSearchResources()
+        search()
+    }
+
+    private func observeSearchResources() {
+        #if canImport(OmniFlowShared)
+        searchResourceSubscriptions.forEach { $0.cancel() }
+        searchResourceSubscriptions = []
+        searchCategoriesByLedger = [:]
+        searchTagsByLedger = [:]
+        let ledgerIDs = searchLedgerID.map { [$0] } ?? ledgers.map(\.id)
+        guard !ledgerIDs.isEmpty else { searchCategories = []; searchTags = []; return }
+        for ledgerID in ledgerIDs {
+            searchResourceSubscriptions.append(bridge.watchCategories(ledgerId: ledgerID) { [weak self] values, message in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.error = message
+                    self.searchCategoriesByLedger[ledgerID] = values?.map {
+                        CategoryUI(
+                            id: $0.id,
+                            name: $0.name,
+                            type: String(describing: $0.type).contains("INCOME") ? .income : .expense,
+                            parentID: $0.parentId,
+                            iconKey: $0.iconKey
+                        )
+                    } ?? []
+                    self.searchCategories = ledgerIDs.flatMap { self.searchCategoriesByLedger[$0] ?? [] }
+                }
+            })
+            searchResourceSubscriptions.append(bridge.watchTags(ledgerId: ledgerID) { [weak self] values, message in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.error = message
+                    self.searchTagsByLedger[ledgerID] = values?.map { TagUI(id: $0.id, name: $0.name) } ?? []
+                    self.searchTags = ledgerIDs.flatMap { self.searchTagsByLedger[$0] ?? [] }
+                }
+            })
+        }
+        #else
+        searchCategories = categories
+        searchTags = tags
+        #endif
+    }
+
+    func showTransactionDetail(_ transaction: TransactionUI) {
+        selectedTransactionDetail = transaction
+    }
+
+    func dismissTransactionDetail() {
+        selectedTransactionDetail = nil
+    }
+
+    func editSelectedTransaction() {
+        guard let transaction = selectedTransactionDetail else { return }
+        selectedTransactionDetail = nil
+        DispatchQueue.main.async { [weak self] in self?.editTransaction(transaction) }
+    }
+
+    func deleteSelectedTransaction(completion: @escaping (String?) -> Void) {
+        guard let id = selectedTransactionDetail?.id else { return }
+        deleteTransaction(id) { [weak self] message in
+            if message == nil { self?.selectedTransactionDetail = nil }
+            completion(message)
+        }
     }
 
     func saveTransaction(
@@ -792,6 +830,7 @@ final class AppStore: ObservableObject {
                     self?.observeCategories()
                 }
                 self?.observeHome()
+                if self?.searchLedgerID == nil { self?.observeSearchResources() }
             }
         })
         subscriptions.append(bridge.watchDefaultLedgerId { [weak self] value, message in
@@ -839,7 +878,7 @@ final class AppStore: ObservableObject {
                 self?.error = message
                 self?.appLockEnabled = value?.appLockEnabled ?? false
                 self?.appearanceMode = value?.appearanceMode ?? "SYSTEM"
-                self?.themeColor = value?.themeColor ?? "GRAPHITE"
+                self?.themeColor = value?.themeColor ?? "LAVENDER"
                 self?.selectedLedgerID = value?.homeLedgerId
                 self?.analyticsLedgerID = value?.analyticsLedgerId
                 self?.transactionDisplayMode = TransactionDisplayMode(rawValue: value?.transactionDetailDisplayMode ?? "LIST") ?? .list
@@ -938,7 +977,7 @@ final class AppStore: ObservableObject {
         }
     }
 
-    private static func transaction(_ value: TransactionListItem) -> TransactionUI {
+    private static func transaction(_ value: TransactionListItem, tagNames: [String] = []) -> TransactionUI {
         TransactionUI(
             id: value.id,
             ledgerID: value.ledgerId,
@@ -947,12 +986,14 @@ final class AppStore: ObservableObject {
             accountName: value.accountName,
             categoryID: value.categoryId,
             categoryName: value.categoryName,
+            primaryCategoryName: value.primaryCategoryName,
             categoryIconKey: value.categoryIconKey,
             amountMinor: value.amount,
             type: String(describing: value.type).contains("INCOME") ? .income : .expense,
             date: Date(timeIntervalSince1970: TimeInterval(value.occurredAt.epochSeconds)),
             note: value.note ?? "",
-            excluded: value.isExcluded
+            excluded: value.isExcluded,
+            tagNames: tagNames
         )
     }
 
@@ -973,8 +1014,4 @@ final class AppStore: ObservableObject {
         Calendar.current.date(from: DateComponents(year: year, month: month, day: day)) ?? Date()
     }
 
-    private static func minor(_ text: String) -> Int64? {
-        guard !text.isEmpty, let value = Decimal(string: text) else { return nil }
-        return NSDecimalNumber(decimal: value * 100).int64Value
-    }
 }

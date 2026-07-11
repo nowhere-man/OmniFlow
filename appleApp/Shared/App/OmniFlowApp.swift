@@ -43,6 +43,10 @@ struct OmniFlowIOSApp: App {
                 PhoneRootView()
                     .environmentObject(store)
             }
+            .onOpenURL { url in
+                guard url.scheme?.lowercased() == "omniflow", url.host?.lowercased() == "add" else { return }
+                store.startNewTransaction()
+            }
             .preferredColorScheme(store.appearanceMode == "DARK" ? .dark : store.appearanceMode == "LIGHT" ? .light : nil)
             .appThemeTint(store.themeColor)
             .onChange(of: store.reminders) { ReminderNotificationScheduler.sync($0) }

@@ -57,5 +57,5 @@ internal val CategoryIconOptions = listOf(
 
 private val categoryIconKeys = CategoryIconOptions.mapTo(hashSetOf(), CategoryIconOption::key)
 
-internal fun colorCategoryIconKey(iconKey: String?): String =
-    "fluent-${iconKey?.takeIf(categoryIconKeys::contains) ?: "category"}"
+internal fun categoryIconKey(iconKey: String?): String =
+    iconKey?.takeIf(categoryIconKeys::contains) ?: "category"
