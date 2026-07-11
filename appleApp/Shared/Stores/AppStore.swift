@@ -530,12 +530,17 @@ final class AppStore: ObservableObject {
             id: id,
             typeName: type,
             name: name,
-            amountMinor: Self.boxedLong(amountMinor),
+            amountMinor: amountMinor ?? 0,
+            hasAmount: amountMinor != nil,
             scheduleKindName: schedule,
-            dayOfMonth: dayOfMonth.map(Int32.init),
-            daysAfter: daysAfter.map(Int32.init),
-            dayOfWeek: dayOfWeek.map(Int32.init),
-            month: month.map(Int32.init),
+            dayOfMonth: Int32(dayOfMonth ?? 0),
+            hasDayOfMonth: dayOfMonth != nil,
+            daysAfter: Int32(daysAfter ?? 0),
+            hasDaysAfter: daysAfter != nil,
+            dayOfWeek: Int32(dayOfWeek ?? 0),
+            hasDayOfWeek: dayOfWeek != nil,
+            month: Int32(month ?? 0),
+            hasMonth: month != nil,
             paused: paused,
             callback: done
         )
@@ -785,18 +790,17 @@ final class AppStore: ObservableObject {
         })
         subscriptions.append(bridge.watchReminders { [weak self] values, message in
             let reminders: [ReminderUI] = values?.map { value -> ReminderUI in
-                let amountMinor: Int64? = (value.amount as? KotlinLong)?.int64Value
                 return ReminderUI(
                     id: value.id,
                     name: value.name,
-                    type: String(describing: value.type).components(separatedBy: ".").last?.uppercased() ?? "REPAYMENT",
-                    amountMinor: amountMinor,
-                    scheduleKind: String(describing: value.schedule.kind).components(separatedBy: ".").last?.uppercased() ?? "MONTHLY",
+                    type: value.typeName,
+                    amountMinor: value.hasAmount ? value.amountMinor : nil,
+                    scheduleKind: value.scheduleKindName,
                     paused: value.paused,
-                    dayOfMonth: value.schedule.dayOfMonth.map(Int.init),
-                    daysAfter: value.schedule.daysAfter.map(Int.init),
-                    dayOfWeek: value.schedule.dayOfWeek.map(Int.init),
-                    month: value.schedule.month.map(Int.init)
+                    dayOfMonth: value.hasDayOfMonth ? Int(value.dayOfMonth) : nil,
+                    daysAfter: value.hasDaysAfter ? Int(value.daysAfter) : nil,
+                    dayOfWeek: value.hasDayOfWeek ? Int(value.dayOfWeek) : nil,
+                    month: value.hasMonth ? Int(value.month) : nil
                 )
             } ?? []
             Task { @MainActor in

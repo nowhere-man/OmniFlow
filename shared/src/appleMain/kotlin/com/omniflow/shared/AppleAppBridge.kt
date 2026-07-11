@@ -68,6 +68,24 @@ data class ApplePreferenceSnapshot(
     val backupRetention: Int,
 )
 
+data class AppleReminderSnapshot(
+    val id: String,
+    val name: String,
+    val typeName: String,
+    val amountMinor: Long,
+    val hasAmount: Boolean,
+    val scheduleKindName: String,
+    val dayOfMonth: Int,
+    val hasDayOfMonth: Boolean,
+    val daysAfter: Int,
+    val hasDaysAfter: Boolean,
+    val dayOfWeek: Int,
+    val hasDayOfWeek: Boolean,
+    val month: Int,
+    val hasMonth: Boolean,
+    val paused: Boolean,
+)
+
 class AppleAppBridge(val app: SharedApp) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val ids = UuidGenerator()
@@ -165,8 +183,32 @@ class AppleAppBridge(val app: SharedApp) {
     fun watchRules(ledgerId: String, callback: (List<Rule>?, String?) -> Unit) =
         watch(app.management.observeRules(ledgerId), callback)
 
-    fun watchReminders(callback: (List<Reminder>?, String?) -> Unit) =
-        watch(app.reminders.observe(), callback)
+    fun watchReminders(callback: (List<AppleReminderSnapshot>?, String?) -> Unit) = watch(
+        app.reminders.observe().map { result ->
+            result.map { reminders ->
+                reminders.map { reminder ->
+                    AppleReminderSnapshot(
+                        id = reminder.id,
+                        name = reminder.name,
+                        typeName = reminder.type.name,
+                        amountMinor = reminder.amount?.minor ?: 0,
+                        hasAmount = reminder.amount != null,
+                        scheduleKindName = reminder.schedule.kind.name,
+                        dayOfMonth = reminder.schedule.dayOfMonth ?: 0,
+                        hasDayOfMonth = reminder.schedule.dayOfMonth != null,
+                        daysAfter = reminder.schedule.daysAfter ?: 0,
+                        hasDaysAfter = reminder.schedule.daysAfter != null,
+                        dayOfWeek = reminder.schedule.dayOfWeek ?: 0,
+                        hasDayOfWeek = reminder.schedule.dayOfWeek != null,
+                        month = reminder.schedule.month ?: 0,
+                        hasMonth = reminder.schedule.month != null,
+                        paused = reminder.paused,
+                    )
+                }
+            }
+        },
+        callback,
+    )
 
     fun watchPreferences(callback: (AppPreferences?, String?) -> Unit) =
         watch(app.preferences.observe(), callback)
@@ -410,12 +452,17 @@ class AppleAppBridge(val app: SharedApp) {
         id: String?,
         typeName: String,
         name: String,
-        amountMinor: Long?,
+        amountMinor: Long,
+        hasAmount: Boolean,
         scheduleKindName: String,
-        dayOfMonth: Int?,
-        daysAfter: Int?,
-        dayOfWeek: Int?,
-        month: Int?,
+        dayOfMonth: Int,
+        hasDayOfMonth: Boolean,
+        daysAfter: Int,
+        hasDaysAfter: Boolean,
+        dayOfWeek: Int,
+        hasDayOfWeek: Boolean,
+        month: Int,
+        hasMonth: Boolean,
         paused: Boolean,
         callback: (String?) -> Unit,
     ) {
@@ -424,9 +471,13 @@ class AppleAppBridge(val app: SharedApp) {
                 id = id ?: ids.next(),
                 type = ReminderType.valueOf(typeName),
                 name = name,
-                amount = amountMinor?.let(::Money),
+                amount = if (hasAmount) Money(amountMinor) else null,
                 schedule = ReminderSchedule(
-                    ReminderScheduleKind.valueOf(scheduleKindName), dayOfMonth, daysAfter, dayOfWeek, month,
+                    ReminderScheduleKind.valueOf(scheduleKindName),
+                    dayOfMonth.takeIf { hasDayOfMonth },
+                    daysAfter.takeIf { hasDaysAfter },
+                    dayOfWeek.takeIf { hasDayOfWeek },
+                    month.takeIf { hasMonth },
                 ),
                 paused = paused,
             )
