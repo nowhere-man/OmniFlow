@@ -18,6 +18,17 @@ android {
 
     sourceSets["main"].assets.srcDir(rootProject.file("assets"))
 
+    if (providers.gradleProperty("androidArm64Only").isPresent) {
+        splits {
+            abi {
+                isEnable = true
+                reset()
+                include("arm64-v8a")
+                isUniversalApk = false
+            }
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
