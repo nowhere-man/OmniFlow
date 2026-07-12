@@ -80,6 +80,7 @@ final class AppStore: ObservableObject {
     @Published var syncProgress: Double?
     @Published var syncLastBackupAt: String?
     @Published var syncError: String?
+    private var analyticsObservation: (start: Date, end: Date, ledgerID: String?)?
     #if canImport(OmniFlowShared)
     private var analyticsSubscription: AppleFlowSubscription?
     private var homeSubscription: AppleFlowSubscription?
@@ -126,6 +127,7 @@ final class AppStore: ObservableObject {
     }
 
     func observeAnalytics(start: Date, end: Date, ledgerID: String? = nil) {
+        analyticsObservation = (start, end, ledgerID)
         #if canImport(OmniFlowShared)
         analyticsSubscription?.cancel()
         analyticsSubscription = bridge.watchAnalytics(
@@ -417,8 +419,11 @@ final class AppStore: ObservableObject {
             note: note.isEmpty ? nil : note,
             excluded: excluded,
             tagIds: tagIDs
-        ) { message in
-            Task { @MainActor in completion(message) }
+        ) { [weak self] message in
+            Task { @MainActor in
+                if message == nil { self?.refreshFinancialViews() }
+                completion(message)
+            }
         }
         #else
         completion("共享 Framework 尚未构建")
@@ -455,10 +460,26 @@ final class AppStore: ObservableObject {
 
     func deleteTransaction(_ id: String, completion: @escaping (String?) -> Void) {
         #if canImport(OmniFlowShared)
-        bridge.deleteTransaction(id: id) { message in Task { @MainActor in completion(message) } }
+        bridge.deleteTransaction(id: id) { [weak self] message in
+            Task { @MainActor in
+                if message == nil { self?.refreshFinancialViews() }
+                completion(message)
+            }
+        }
         #else
         completion("共享 Framework 尚未构建")
         #endif
+    }
+
+    private func refreshFinancialViews() {
+        observeHome()
+        if let analyticsObservation {
+            observeAnalytics(
+                start: analyticsObservation.start,
+                end: analyticsObservation.end,
+                ledgerID: analyticsObservation.ledgerID
+            )
+        }
     }
 
     func saveLedger(id: String?, name: String, coverKey: String?) { perform { done in

@@ -18,24 +18,29 @@ struct SVGIconView: View {
     @State private var image: PlatformImage?
 
     var body: some View {
-        Group {
-            if let image {
-                platformImage(image)
-            } else {
-                Color.clear
+        if !key.hasPrefix("fluent-"), let png = SVGPNGCache.image(key) {
+            platformTemplateImage(png)
+                .frame(width: size, height: size)
+                .accessibilityHidden(true)
+        } else {
+            Group {
+                if let image {
+                    platformImage(image)
+                } else {
+                    Color.clear
+                }
             }
+            .frame(width: size, height: size)
+            .task(id: renderKey) {
+                let rendered = await SVGSnapshotRenderer.shared.image(
+                    key: key,
+                    tint: resolvedTint,
+                    pointSize: max(size, 24)
+                )
+                if !Task.isCancelled { image = rendered }
+            }
+            .accessibilityHidden(true)
         }
-        .frame(width: size, height: size)
-        .task(id: renderKey) {
-            image = nil
-            let rendered = await SVGSnapshotRenderer.shared.image(
-                key: key,
-                tint: resolvedTint,
-                pointSize: max(size, 24)
-            )
-            if !Task.isCancelled { image = rendered }
-        }
-        .accessibilityHidden(true)
     }
 
     private var resolvedTint: String {
@@ -52,6 +57,42 @@ struct SVGIconView: View {
         Image(nsImage: image).resizable().scaledToFit()
         #endif
     }
+
+    @ViewBuilder
+    private func platformTemplateImage(_ image: PlatformImage) -> some View {
+        #if os(iOS)
+        Image(uiImage: image).renderingMode(.template).resizable().scaledToFit().foregroundStyle(Color(cssHex: resolvedTint))
+        #else
+        Image(nsImage: image).renderingMode(.template).resizable().scaledToFit().foregroundStyle(Color(cssHex: resolvedTint))
+        #endif
+    }
+}
+
+private enum SVGPNGCache {
+    private static let cache = NSCache<NSString, PlatformImage>()
+
+    static func image(_ key: String) -> PlatformImage? {
+        if let cached = cache.object(forKey: key as NSString) { return cached }
+        guard let url = Bundle.main.url(forResource: key, withExtension: "png", subdirectory: "icons") else { return nil }
+        #if os(iOS)
+        guard let image = UIImage(contentsOfFile: url.path) else { return nil }
+        #else
+        guard let image = NSImage(contentsOf: url) else { return nil }
+        #endif
+        cache.setObject(image, forKey: key as NSString)
+        return image
+    }
+}
+
+private extension Color {
+    init(cssHex: String) {
+        let value = UInt64(cssHex.trimmingCharacters(in: CharacterSet(charactersIn: "#")), radix: 16) ?? 0
+        self.init(
+            red: Double((value >> 16) & 0xFF) / 255,
+            green: Double((value >> 8) & 0xFF) / 255,
+            blue: Double(value & 0xFF) / 255
+        )
+    }
 }
 
 @MainActor
@@ -63,10 +104,10 @@ private final class SVGSnapshotRenderer: NSObject, WKNavigationDelegate {
         let html: String
         let baseURL: URL
         let pixelSize: CGFloat
-        let continuation: CheckedContinuation<PlatformImage?, Never>
     }
 
     private let cache = NSCache<NSString, PlatformImage>()
+    private var pending: [String: [CheckedContinuation<PlatformImage?, Never>]] = [:]
     private var queue: [Request] = []
     private var current: Request?
     private lazy var webView: WKWebView = {
@@ -97,12 +138,16 @@ private final class SVGSnapshotRenderer: NSObject, WKNavigationDelegate {
         </body></html>
         """
         return await withCheckedContinuation { continuation in
+            if pending[cacheKey] != nil {
+                pending[cacheKey]?.append(continuation)
+                return
+            }
+            pending[cacheKey] = [continuation]
             queue.append(Request(
                 cacheKey: cacheKey,
                 html: html,
                 baseURL: asset.url.deletingLastPathComponent(),
-                pixelSize: pixelSize,
-                continuation: continuation
+                pixelSize: pixelSize
             ))
             renderNextIfNeeded()
         }
@@ -140,7 +185,7 @@ private final class SVGSnapshotRenderer: NSObject, WKNavigationDelegate {
     private func finish(_ image: PlatformImage?) {
         guard let current else { return }
         if let image { cache.setObject(image, forKey: current.cacheKey as NSString) }
-        current.continuation.resume(returning: image)
+        pending.removeValue(forKey: current.cacheKey)?.forEach { $0.resume(returning: image) }
         self.current = nil
         renderNextIfNeeded()
     }

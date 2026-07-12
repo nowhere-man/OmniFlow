@@ -5,7 +5,7 @@ struct PhoneRootView: View {
     @EnvironmentObject private var store: AppStore
 
     var body: some View {
-        TabView(selection: $store.destination) {
+        TabView(selection: phoneDestination) {
             NavigationStack { HomeView() }
                 .tabItem { Label("首页", systemImage: "house") }
                 .tag(MainDestination.home)
@@ -35,6 +35,19 @@ struct PhoneRootView: View {
             TransactionDetailView(transaction: transaction)
                 .environmentObject(store)
         }
+    }
+
+    private var phoneDestination: Binding<MainDestination> {
+        Binding(
+            get: { store.destination },
+            set: { destination in
+                if destination == .transaction {
+                    store.startNewTransaction()
+                } else {
+                    store.destination = destination
+                }
+            }
+        )
     }
 }
 #endif

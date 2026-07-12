@@ -69,7 +69,7 @@ struct TransactionEditorView: View {
     }
 
     private var editorFields: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             TransactionTopBar(type: $type, ledgerID: $ledgerID, accountID: $accountID)
             TransactionCategoryPicker(
                 categories: store.categories,
@@ -106,8 +106,6 @@ struct TransactionEditorView: View {
                         .padding()
                         .platformPopoverAdaptation()
                 }
-                Spacer()
-                Toggle("不计入统计", isOn: $excluded)
             }
         }
     }
@@ -265,7 +263,15 @@ private struct TransactionCategoryPicker: View {
             if primaryCategories.isEmpty {
                 Text("选择账本后加载分类").font(.subheadline).foregroundStyle(.secondary)
             } else {
-                LazyVGrid(columns: columns, spacing: 4) { categoryTiles }
+                #if os(iOS)
+                ScrollView(.vertical, showsIndicators: false) {
+                    LazyVGrid(columns: columns, spacing: 6) { categoryTiles }
+                        .padding(.vertical, 2)
+                }
+                .frame(height: 158)
+                #else
+                LazyVGrid(columns: columns, spacing: 6) { categoryTiles }
+                #endif
             }
             if let primary = selectedPrimary {
                 VStack(alignment: .leading, spacing: 8) {
@@ -309,7 +315,7 @@ private struct TransactionCategoryPicker: View {
     }
     private var columns: [GridItem] {
         #if os(iOS)
-        return Array(repeating: GridItem(.flexible(), spacing: 4), count: 5)
+        return Array(repeating: GridItem(.flexible(), spacing: 6), count: 4)
         #else
         return [GridItem(.adaptive(minimum: 76), spacing: 6)]
         #endif
@@ -383,7 +389,7 @@ private struct CategoryTile: View {
                 )
                 Text(category.name).font(.caption.weight(selected ? .bold : .medium)).lineLimit(1)
             }
-            .frame(maxWidth: .infinity, minHeight: 68)
+            .frame(maxWidth: .infinity, minHeight: 72)
             .foregroundStyle(selected ? selectedForeground : Color.primary)
             .overlay { RoundedRectangle(cornerRadius: 14).stroke(selected ? Color.clear : Color.secondary.opacity(0.16), lineWidth: 1) }
         }
@@ -459,7 +465,7 @@ private struct TransactionAmountPanel: View {
         return Button(done && saving ? "保存中" : key) {
             if done { onDone() } else if again { onAgain() } else { press(key) }
         }
-        .frame(maxWidth: .infinity, minHeight: 44)
+        .frame(maxWidth: .infinity, minHeight: 50)
         .foregroundStyle(done ? selectedForeground : operation ? themeColor : Color.primary)
         .font(done || again || key == "退格" ? .headline.weight(.bold) : .title2.weight(.bold))
         .buttonStyle(.plain)
@@ -502,19 +508,26 @@ private struct TransactionTagPicker: View {
     @Binding var selectedIDs: Set<String>
 
     var body: some View {
-        if !tags.isEmpty {
+        HStack(spacing: 8) {
+            Image(systemName: "tag").foregroundStyle(.secondary)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    Text("标签").font(.caption).foregroundStyle(.secondary)
-                    ForEach(tags) { tag in
-                        Button(tag.name) {
-                            if !selectedIDs.insert(tag.id).inserted { selectedIDs.remove(tag.id) }
+                    if tags.isEmpty {
+                        Text("暂无标签").font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        ForEach(tags) { tag in
+                            Button(tag.name) {
+                                if !selectedIDs.insert(tag.id).inserted { selectedIDs.remove(tag.id) }
+                            }
+                            .buttonStyle(SelectablePillButtonStyle(selected: selectedIDs.contains(tag.id)))
                         }
-                        .buttonStyle(SelectablePillButtonStyle(selected: selectedIDs.contains(tag.id)))
                     }
                 }
             }
         }
+        .padding(.horizontal, 10)
+        .frame(minHeight: 38)
+        .liquidGlassSurface(cornerRadius: 13)
     }
 }
 
