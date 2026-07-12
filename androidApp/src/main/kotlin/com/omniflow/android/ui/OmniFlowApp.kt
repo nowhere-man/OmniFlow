@@ -113,7 +113,6 @@ private enum class MainDestination(val label: String, val icon: ImageVector) {
     MORE("更多", Icons.Default.MoreHoriz),
 }
 
-private val ExpenseColor = Color(0xFFB3261E)
 private val IncomeColor = Color(0xFF2E7D32)
 
 @Composable
@@ -470,12 +469,18 @@ private fun HomeScreen(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     CalendarFilter(state.calendarFilter, onCalendarFilter)
                 }
-                CalendarMonth(
-                    month = home.month.startInclusive.toLocalDateTime(ChinaTimeZone).date,
-                    summaries = home.calendar,
-                    filter = state.calendarFilter,
-                    onDateSelected = onDateSelected,
-                )
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                ) {
+                    CalendarMonth(
+                        month = home.month.startInclusive.toLocalDateTime(ChinaTimeZone).date,
+                        summaries = home.calendar,
+                        filter = state.calendarFilter,
+                        onDateSelected = onDateSelected,
+                        modifier = Modifier.padding(12.dp),
+                    )
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("明细", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.weight(1f))
@@ -682,6 +687,7 @@ private fun CalendarMonth(
     summaries: List<CalendarDaySummary>,
     filter: CalendarTransactionFilter,
     onDateSelected: (LocalDate) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val totals = remember(summaries) { summaries.associateBy(CalendarDaySummary::date) }
     val today = remember { Clock.System.now().toLocalDateTime(ChinaTimeZone).date }
@@ -690,7 +696,7 @@ private fun CalendarMonth(
     val cells = List(leading) { null } + (1..first.lengthOfMonth()).map { day ->
         LocalDate(month.year, month.monthNumber, day)
     }
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(Modifier.fillMaxWidth()) {
             listOf("日", "一", "二", "三", "四", "五", "六").forEach { weekday ->
                 Text(
@@ -746,7 +752,7 @@ private fun CalendarCell(
             Text(
                 date.dayOfMonth.toString(),
                 color = if (isToday) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (isToday) FontWeight.SemiBold else FontWeight.Normal,
             )
         }

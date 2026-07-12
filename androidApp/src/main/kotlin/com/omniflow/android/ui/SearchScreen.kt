@@ -168,7 +168,7 @@ internal fun SearchScreen(
                 ) {
                     Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("收入 ${result.summary.incomeTotal.asRmb()}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-                        Text("支出 ${result.summary.expenseTotal.asRmb()}", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+                        Text("支出 ${result.summary.expenseTotal.asRmb()}", color = ExpenseColor, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -226,7 +226,7 @@ internal fun SearchScreen(
                             item.transaction.amount.asRmb(),
                             fontWeight = FontWeight.Bold,
                             color = if (item.transaction.type == TransactionType.EXPENSE) {
-                                MaterialTheme.colorScheme.error
+                                ExpenseColor
                             } else MaterialTheme.colorScheme.primary,
                         )
                     }
@@ -280,7 +280,7 @@ private fun SearchTypeSelector(selected: TransactionType?, onSelected: (Transact
                             fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
                             color = when {
                                 !active -> MaterialTheme.colorScheme.onSurfaceVariant
-                                type == TransactionType.EXPENSE -> MaterialTheme.colorScheme.error
+                                type == TransactionType.EXPENSE -> ExpenseColor
                                 else -> MaterialTheme.colorScheme.primary
                             },
                         )

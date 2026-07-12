@@ -332,7 +332,7 @@ private struct TrendChart: View {
                         x: .value("日期", point.label),
                         y: .value("支出", -Double(point.expense) / 100)
                     )
-                    .foregroundStyle(Color.red.opacity(0.78))
+                    .foregroundStyle(Color.expense)
                 }
             }
             RuleMark(y: .value("零", 0.0)).foregroundStyle(Color.secondary.opacity(0.5))
@@ -341,7 +341,7 @@ private struct TrendChart: View {
         .frame(height: 220)
         HStack(spacing: 16) {
             chartLegend("收入", color: themeColor)
-            chartLegend("支出", color: .red)
+            chartLegend("支出", color: .expense)
         }
     }
 
@@ -416,7 +416,7 @@ private struct ComparisonMetricRow: View {
                 Spacer()
                 Text("\(change >= 0 ? "+" : "")\(change.rmb)")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(favorable(change) ? themeColor : Color.red)
+                    .foregroundStyle(favorable(change) ? themeColor : Color.expense)
             }
             comparisonBar(value: metric.current, maximum: maximum, color: .primary)
             comparisonBar(value: metric.previous, maximum: maximum, color: .secondary)

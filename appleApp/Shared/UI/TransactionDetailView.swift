@@ -23,7 +23,7 @@ struct TransactionDetailView: View {
                             .font(.headline)
                         Text("\(transaction.type == .expense ? "−" : "+")\(transaction.amountMinor.rmb)")
                             .font(.largeTitle.bold().monospacedDigit())
-                            .foregroundStyle(transaction.type == .expense ? Color.red : themeColor)
+                            .foregroundStyle(transaction.type == .expense ? Color.expense : themeColor)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(20)

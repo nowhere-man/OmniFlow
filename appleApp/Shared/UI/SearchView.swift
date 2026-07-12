@@ -179,7 +179,7 @@ struct SearchView: View {
                 Spacer()
                 Text(item.amountMinor.rmb)
                     .fontWeight(.bold)
-                    .foregroundStyle(item.type == .expense ? Color.red : themeColor)
+                    .foregroundStyle(item.type == .expense ? Color.expense : themeColor)
             }
             .padding(12)
             .contentShape(Rectangle())

@@ -1,6 +1,10 @@
 import Foundation
 import SwiftUI
 
+extension Color {
+    static let expense = Color(red: 232 / 255, green: 121 / 255, blue: 112 / 255)
+}
+
 enum AppThemeColor: String, CaseIterable, Identifiable {
     case lavender = "LAVENDER"
     case mistBlue = "MIST_BLUE"

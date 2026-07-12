@@ -24,6 +24,8 @@ struct HomeView: View {
                 MonthlyBalanceCard(expense: store.expenseMinor, income: store.incomeMinor)
                 HStack { Spacer(); CalendarFilterPicker() }
                 HomeCalendarView()
+                    .padding(12)
+                    .liquidGlassSurface(cornerRadius: 18)
                 HStack {
                     Text("明细").font(.title2.bold())
                     Spacer()
@@ -135,13 +137,13 @@ private struct HomeCalendarView: View {
                     Button { store.showDate(date) } label: {
                         VStack(spacing: 2) {
                             Text("\(day)")
-                                .fontWeight(isToday ? .bold : .medium)
+                                .font(.body.weight(isToday ? .bold : .medium))
                                 .foregroundStyle(isToday ? selectedForeground : Color.primary)
                                 .frame(width: 28, height: 28)
                                 .background(isToday ? themeColor : .clear, in: Circle())
                             if let displayAmount = summary?.displayAmountMinor {
                                 Text("\(summary?.displayIsIncome == true ? "+" : "-")\(compact(displayAmount))")
-                                    .foregroundStyle(summary?.displayIsIncome == true ? themeColor : Color.red)
+                                    .foregroundStyle(summary?.displayIsIncome == true ? themeColor : Color.expense)
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.7)
                             }
@@ -153,7 +155,6 @@ private struct HomeCalendarView: View {
                 }
             }
         }
-        .padding(.vertical, 4)
     }
 
     private var interval: DateInterval { Calendar.current.dateInterval(of: .month, for: store.selectedMonth) ?? DateInterval(start: store.selectedMonth, duration: 30 * 86_400) }
@@ -177,7 +178,7 @@ private struct DateTransactionDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(spacing: 22) {
-                        Text("支出 \(store.dateDetailExpenseMinor.wholeRmb)").foregroundStyle(.red)
+                        Text("支出 \(store.dateDetailExpenseMinor.wholeRmb)").foregroundStyle(Color.expense)
                         Text("收入 \(store.dateDetailIncomeMinor.wholeRmb)").foregroundStyle(themeColor)
                         Spacer()
                         displayModeButton
@@ -240,7 +241,7 @@ private struct TransactionGroupsView: View {
                     Spacer()
                     HStack(spacing: 16) {
                         if group.expenseMinor != 0 {
-                            Text("支出 \(group.expenseMinor.wholeRmb)").foregroundStyle(.red)
+                            Text("支出 \(group.expenseMinor.wholeRmb)").foregroundStyle(Color.expense)
                         }
                         if group.incomeMinor != 0 {
                             Text("收入 \(group.incomeMinor.wholeRmb)").foregroundStyle(themeColor)
@@ -309,7 +310,7 @@ private struct TransactionRow: View {
                 Spacer()
                 VStack(alignment: .trailing) {
                     Text("\(item.type == .expense ? "−" : "+")\(item.amountMinor.rmb)")
-                        .foregroundStyle(item.type == .expense ? Color.red : themeColor)
+                        .foregroundStyle(item.type == .expense ? Color.expense : themeColor)
                         .fontWeight(.semibold)
                     Text(item.date.formatted(date: .omitted, time: .shortened)).font(.caption).foregroundStyle(.secondary)
                 }
@@ -341,7 +342,7 @@ private struct TransactionCard: View {
                     Spacer()
                     Text("\(item.type == .expense ? "−" : "+")\(item.amountMinor.rmb)")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(item.type == .expense ? Color.red : themeColor)
+                        .foregroundStyle(item.type == .expense ? Color.expense : themeColor)
                 }
                 Text(item.categoryDisplayName).fontWeight(.semibold).lineLimit(1)
                 Text(item.accountName).font(.caption).foregroundStyle(.secondary).lineLimit(1)

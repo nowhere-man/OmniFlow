@@ -74,7 +74,6 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private val AnalyticsIncomeColor = Color(0xFF55B6A7)
-private val AnalyticsExpenseColor = Color(0xFFE87970)
 private val AnalyticsGoldColor = Color(0xFFD5A75A)
 private val AnalyticsSkyColor = Color(0xFF69A9D0)
 private val AnalyticsPurpleColor = Color(0xFF8D7AC4)
@@ -261,7 +260,7 @@ internal fun AnalyticsScreen(
                                     Text(
                                         item.transaction.amount.asRmb(),
                                         fontWeight = FontWeight.Bold,
-                                        color = if (state.rankingType == TransactionType.EXPENSE) AnalyticsExpenseColor else AnalyticsIncomeColor,
+                                        color = if (state.rankingType == TransactionType.EXPENSE) ExpenseColor else AnalyticsIncomeColor,
                                     )
                                 }
                             }
@@ -436,13 +435,13 @@ private fun LedgerScopeMenu(scope: LedgerScope, ledgers: List<com.omniflow.share
 @Composable
 private fun SummaryRow(expense: Money, income: Money, net: Money, comparison: PeriodCompareResult) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SummaryCard("总支出", expense, comparison.expenseChange, AnalyticsExpenseColor, false, Modifier.weight(1f))
+        SummaryCard("总支出", expense, comparison.expenseChange, ExpenseColor, false, Modifier.weight(1f))
         SummaryCard("总收入", income, comparison.incomeChange, AnalyticsIncomeColor, true, Modifier.weight(1f))
         SummaryCard(
             "总结余",
             net,
             comparison.netIncomeChange,
-            if (net.minor >= 0) MaterialTheme.colorScheme.primary else AnalyticsExpenseColor,
+            if (net.minor >= 0) MaterialTheme.colorScheme.primary else ExpenseColor,
             true,
             Modifier.weight(1f),
         )
@@ -514,7 +513,7 @@ private fun ChartLegendSwitch(
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ChartLegendItem("收入", AnalyticsIncomeColor, showIncome) { onToggle(TransactionType.INCOME) }
-        ChartLegendItem("支出", AnalyticsExpenseColor, showExpense) { onToggle(TransactionType.EXPENSE) }
+        ChartLegendItem("支出", ExpenseColor, showExpense) { onToggle(TransactionType.EXPENSE) }
     }
 }
 
@@ -577,7 +576,7 @@ private fun IncomeExpenseTrendChart(
                             Modifier.width(22.dp)
                                 .height((44f * ratio.coerceIn(0f, 1f)).coerceAtLeast(if (ratio > 0f) 4f else 0f).dp)
                                 .clip(RoundedCornerShape(bottomStart = 7.dp, bottomEnd = 7.dp))
-                                .background(AnalyticsExpenseColor),
+                                .background(ExpenseColor),
                         )
                     }
                     Text(point.label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
@@ -592,7 +591,7 @@ private fun SelectedTrendPoint(point: ChartPoint) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         TrendValueChip(point.label, MaterialTheme.colorScheme.primary, Modifier.weight(1f))
         TrendValueChip("收入 ${point.income.asRmb()}", AnalyticsIncomeColor, Modifier.weight(1f))
-        TrendValueChip("支出 ${point.expense.asRmb()}", AnalyticsExpenseColor, Modifier.weight(1f))
+        TrendValueChip("支出 ${point.expense.asRmb()}", ExpenseColor, Modifier.weight(1f))
     }
 }
 
@@ -614,7 +613,7 @@ private fun TrendValueChip(label: String, color: Color, modifier: Modifier = Mod
 @Composable
 private fun ComparisonChart(title: String, previousLabel: String, comparison: PeriodCompareResult) {
     val metrics = listOf(
-        ComparisonMetric("支出", comparison.current.expenseTotal, comparison.previous.expenseTotal, AnalyticsExpenseColor, false),
+        ComparisonMetric("支出", comparison.current.expenseTotal, comparison.previous.expenseTotal, ExpenseColor, false),
         ComparisonMetric("收入", comparison.current.incomeTotal, comparison.previous.incomeTotal, AnalyticsIncomeColor, true),
         ComparisonMetric("结余", comparison.current.netIncome, comparison.previous.netIncome, MaterialTheme.colorScheme.primary, true),
     )
@@ -777,7 +776,7 @@ private fun analyticsCategoryColors(): List<Color> = listOf(
     AnalyticsIncomeColor,
     AnalyticsGoldColor,
     AnalyticsSkyColor,
-    AnalyticsExpenseColor,
+    ExpenseColor,
     AnalyticsPurpleColor,
     AnalyticsRoseColor,
     AnalyticsSageColor,
@@ -792,7 +791,7 @@ private fun Money.changeLabel(): String = when {
 
 private fun Money.semanticChangeColor(increaseIsPositive: Boolean): Color {
     val improved = if (increaseIsPositive) minor >= 0 else minor <= 0
-    return if (improved) AnalyticsIncomeColor else AnalyticsExpenseColor
+    return if (improved) AnalyticsIncomeColor else ExpenseColor
 }
 
 private fun comparisonChangeLabel(current: Money, previous: Money): String {
@@ -837,7 +836,7 @@ private fun TypeSwitch(selected: TransactionType, onSelected: (TransactionType) 
                         textAlign = TextAlign.Center,
                         fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
                         color = if (active) {
-                            if (type == TransactionType.EXPENSE) AnalyticsExpenseColor else AnalyticsIncomeColor
+                            if (type == TransactionType.EXPENSE) ExpenseColor else AnalyticsIncomeColor
                         } else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

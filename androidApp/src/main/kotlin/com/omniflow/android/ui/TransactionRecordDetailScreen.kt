@@ -121,7 +121,7 @@ internal fun TransactionRecordDetailSheet(
                                     style = MaterialTheme.typography.headlineMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = if (transaction.type == TransactionType.EXPENSE) {
-                                        MaterialTheme.colorScheme.error
+                                        ExpenseColor
                                     } else MaterialTheme.colorScheme.primary,
                                 )
                             }
