@@ -72,7 +72,11 @@ These rules apply to the entire repository.
 - Do not claim completion from source inspection alone when the requirement is visual or interactive.
 - Never commit private bill samples, credentials, signing material, or other personal data. Tests that use local private fixtures must handle their absence explicitly in CI.
 
-## 8. Git, tags, releases, and CI
+## 8. GitHub issues, Git, tags, releases, and CI
+
+- When resolving GitHub issues, first obtain the complete current open-issue list and read each issue body, comments, edits, and relevant attachments before changing code.
+- Prefer a structured GitHub connector or authenticated CLI/API. If an unauthenticated API returns `404` for a private repository, do not conclude that the repository or issues are missing; use the user's already signed-in Chrome session for read-only issue retrieval.
+- Refresh the complete open-issue list before the final completion audit because new issues may be created while work is in progress.
 
 - Do not commit, push, tag, or publish unless the user requests it.
 - Before creating or moving a tag, inspect the commit diff from the previous release tag to the target commit.
