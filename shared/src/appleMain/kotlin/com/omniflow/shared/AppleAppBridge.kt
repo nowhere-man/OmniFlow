@@ -7,6 +7,8 @@ import com.omniflow.shared.domain.model.AccountType
 import com.omniflow.shared.domain.model.AmountFilter
 import com.omniflow.shared.domain.model.AppPreferences
 import com.omniflow.shared.domain.model.Category
+import com.omniflow.shared.domain.model.CalendarDaySummary
+import com.omniflow.shared.domain.model.CalendarDisplayAmount
 import com.omniflow.shared.domain.model.CalendarTransactionFilter
 import com.omniflow.shared.domain.model.CategoryShareGranularity
 import com.omniflow.shared.domain.model.ImportCommitResult
@@ -41,6 +43,7 @@ import com.omniflow.shared.domain.model.TransactionDetailState
 import com.omniflow.shared.domain.model.TransactionSearchQuery
 import com.omniflow.shared.domain.model.Transaction
 import com.omniflow.shared.domain.model.TransactionType
+import com.omniflow.shared.domain.model.displayAmount
 import com.omniflow.shared.domain.usecase.CreateTransactionCommand
 import com.omniflow.shared.domain.util.UuidGenerator
 import kotlinx.coroutines.CoroutineScope
@@ -120,6 +123,9 @@ class AppleAppBridge(val app: SharedApp) {
         ),
         callback,
     )
+
+    fun calendarDisplayAmount(summary: CalendarDaySummary, filterName: String): CalendarDisplayAmount? =
+        summary.displayAmount(CalendarTransactionFilter.valueOf(filterName))
 
     fun watchTransactionDetails(query: TransactionDetailQuery, callback: (TransactionDetailState?, String?) -> Unit) =
         watch(app.home.observeTransactionDetails(query), callback)

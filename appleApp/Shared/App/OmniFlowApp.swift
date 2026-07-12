@@ -16,12 +16,21 @@ struct OmniFlowMacOSApp: App {
             .appThemeTint(store.themeColor)
             .onChange(of: store.reminders) { ReminderNotificationScheduler.sync($0) }
         }
+        .defaultSize(width: 1180, height: 760)
         .commands {
-            CommandMenu("记账") {
+            CommandGroup(replacing: .newItem) {
                 Button("新建交易") { store.startNewTransaction() }
                     .keyboardShortcut("n")
+            }
+            CommandMenu("导航") {
+                Button("首页") { store.destination = .home }
+                    .keyboardShortcut("1")
+                Button("统计") { store.destination = .analytics }
+                    .keyboardShortcut("2")
                 Button("搜索交易") { store.destination = .search }
                     .keyboardShortcut("f")
+                Button("管理") { store.destination = .more }
+                    .keyboardShortcut("4")
             }
         }
 
@@ -30,6 +39,7 @@ struct OmniFlowMacOSApp: App {
                 SettingsView()
                     .environmentObject(store)
                     .appThemeTint(store.themeColor)
+                    .frame(width: 580, height: 540)
             }
         }
     }

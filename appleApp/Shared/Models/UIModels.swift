@@ -116,16 +116,8 @@ struct CalendarDayUI: Identifiable, Hashable {
     var date: Date
     var expenseMinor: Int64
     var incomeMinor: Int64
-
-    func displayAmount(filter: String) -> (amount: Int64, income: Bool)? {
-        let value: (Int64, Bool)
-        switch filter {
-        case "INCOME": value = (incomeMinor, true)
-        case "EXPENSE": value = (expenseMinor, false)
-        default: value = incomeMinor >= expenseMinor ? (incomeMinor - expenseMinor, true) : (expenseMinor - incomeMinor, false)
-        }
-        return value.0 == 0 ? nil : value
-    }
+    var displayAmountMinor: Int64?
+    var displayIsIncome: Bool
 }
 struct AnalyticsPointUI: Identifiable, Hashable { let id = UUID(); var label: String; var expense: Int64; var income: Int64 }
 struct CategoryShareUI: Identifiable, Hashable { let id: String; var name: String; var iconKey: String?; var amount: Int64 }
@@ -163,10 +155,7 @@ struct TransactionUI: Identifiable, Hashable {
     var excluded: Bool
     var source: String?
     var tagNames: [String] = []
-
-    var categoryDisplayName: String {
-        primaryCategoryName == categoryName ? categoryName : "\(primaryCategoryName)-\(categoryName)"
-    }
+    var categoryDisplayName: String
 
     var sourceDisplayName: String? {
         switch source {

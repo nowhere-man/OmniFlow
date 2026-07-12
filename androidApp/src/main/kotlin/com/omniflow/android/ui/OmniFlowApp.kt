@@ -31,9 +31,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBackIosNew
-import androidx.compose.material.icons.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreHoriz
@@ -45,7 +45,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -576,7 +576,7 @@ private fun MonthSelector(month: LocalDate, onPrevious: () -> Unit, onNext: () -
             fontWeight = FontWeight.SemiBold,
         )
         IconButton(onClick = onNext) {
-            Icon(Icons.Default.ArrowForwardIos, contentDescription = "下个月")
+            Icon(Icons.AutoMirrored.Filled.ArrowForwardIos, contentDescription = "下个月")
         }
     }
 }
@@ -799,7 +799,7 @@ private fun TransactionItems(items: List<TransactionListItem>, displayMode: Tran
         TransactionDetailDisplayMode.LIST -> Column {
             items.forEachIndexed { index, item ->
                 TransactionListRow(item, onEdit)
-                if (index != items.lastIndex) Divider()
+                if (index != items.lastIndex) HorizontalDivider()
             }
         }
 

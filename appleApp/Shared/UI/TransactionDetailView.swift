@@ -30,17 +30,21 @@ struct TransactionDetailView: View {
                     .liquidGlassSurface(cornerRadius: 22)
 
                     VStack(spacing: 0) {
-                        detailRow("金额", value: transaction.amountMinor.rmb, systemImage: "banknote")
-                        Divider()
-                        detailRow("类型", value: transaction.type.label, systemImage: "arrow.left.arrow.right")
-                        Divider()
-                        detailRow("日期", value: transaction.date.formatted(date: .numeric, time: .shortened), systemImage: "calendar")
-                        Divider()
-                        detailRow("账户", value: transaction.accountName, systemImage: "wallet.pass")
-                        Divider()
-                        detailRow("账本", value: transaction.ledgerName, systemImage: "books.vertical")
-                        Divider()
-                        detailRow("统计", value: transaction.excluded ? "不计入统计" : "计入统计", systemImage: "chart.bar")
+                        Group {
+                            detailRow("金额", value: transaction.amountMinor.rmb, systemImage: "banknote")
+                            Divider()
+                            detailRow("类型", value: transaction.type.label, systemImage: "arrow.left.arrow.right")
+                            Divider()
+                            detailRow("日期", value: transaction.date.formatted(date: .numeric, time: .shortened), systemImage: "calendar")
+                            Divider()
+                        }
+                        Group {
+                            detailRow("账户", value: transaction.accountName, systemImage: "wallet.pass")
+                            Divider()
+                            detailRow("账本", value: transaction.ledgerName, systemImage: "books.vertical")
+                            Divider()
+                            detailRow("统计", value: transaction.excluded ? "不计入统计" : "计入统计", systemImage: "chart.bar")
+                        }
                         if let source = transaction.sourceDisplayName, !source.isEmpty {
                             Divider()
                             detailRow("来源", value: source, systemImage: "arrow.triangle.2.circlepath")
@@ -106,7 +110,7 @@ struct TransactionDetailView: View {
         HStack(spacing: 12) {
             Image(systemName: systemImage)
                 .frame(width: 24)
-                .foregroundStyle(.tint)
+                .foregroundStyle(themeColor)
             Text(label).foregroundStyle(.secondary)
             Spacer()
             Text(value).fontWeight(.medium).multilineTextAlignment(.trailing)

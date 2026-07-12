@@ -8,6 +8,7 @@ struct SearchView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 10) {
+                #if os(iOS)
                 HStack {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                     TextField("关键词、分类、账户或标签", text: $store.searchText)
@@ -22,19 +23,18 @@ struct SearchView: View {
                 .padding(.horizontal, 14)
                 .frame(minHeight: 44)
                 .liquidGlassSurface(cornerRadius: 18, interactive: true)
+                #endif
 
                 VStack(spacing: 8) {
                     HStack {
                         Text("筛选").font(.subheadline.bold())
                         Spacer()
-                        if hasFilters { Button("清除", action: clear).buttonStyle(.plain).foregroundStyle(.tint) }
+                        if hasFilters { Button("清除", action: clear).buttonStyle(.plain).foregroundStyle(themeColor) }
                     }
-                    Picker("类型", selection: Binding(get: { store.searchType }, set: setType)) {
-                        Text("全部").tag(EntryType?.none)
-                        Text("支出").tag(Optional(EntryType.expense))
-                        Text("收入").tag(Optional(EntryType.income))
-                    }
-                    .pickerStyle(.segmented)
+                    ThemeSegmentedControl(
+                        selection: Binding(get: { store.searchType }, set: setType),
+                        options: [EntryType?.none, .some(.expense), .some(.income)]
+                    ) { $0?.label ?? "全部" }
 
                     HStack(spacing: 8) {
                         filterMenu(
@@ -100,7 +100,11 @@ struct SearchView: View {
             }
             .padding()
         }
+        #if os(macOS)
+        .navigationTitle("搜索")
+        #else
         .navigationTitle("")
+        #endif
         .onAppear {
             store.prepareSearch()
         }
@@ -162,7 +166,7 @@ struct SearchView: View {
                     Text("\(item.ledgerName) · \(item.accountName)").font(.caption).foregroundStyle(.secondary)
                     if !item.note.isEmpty { Text(item.note).font(.caption).lineLimit(1) }
                     if !item.tagNames.isEmpty {
-                        Text(item.tagNames.joined(separator: " · ")).font(.caption2).foregroundStyle(.tint).lineLimit(1)
+                        Text(item.tagNames.joined(separator: " · ")).font(.caption2).foregroundStyle(themeColor).lineLimit(1)
                     }
                 }
                 Spacer()

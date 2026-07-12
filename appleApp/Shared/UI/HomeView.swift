@@ -12,7 +12,9 @@ struct HomeView: View {
                     Spacer()
                     monthHeader
                     Spacer()
+                    #if os(iOS)
                     Button { store.destination = .search } label: { Image(systemName: "magnifyingglass") }
+                    #endif
                 }
                 MonthlyBalanceCard(expense: store.expenseMinor, income: store.incomeMinor)
                 HStack { Spacer(); CalendarFilterPicker() }
@@ -20,7 +22,10 @@ struct HomeView: View {
                 HStack {
                     Text("明细").font(.title2.bold())
                     Spacer()
-                    Button(store.transactionDisplayMode.label, action: store.toggleTransactionDisplayMode)
+                    Button(action: store.toggleTransactionDisplayMode) {
+                        Image(systemName: store.transactionDisplayMode == .list ? "square.grid.2x2" : "list.bullet")
+                    }
+                    .accessibilityLabel("切换明细展示方式")
                 }
                 if store.loading {
                     ProgressView().frame(maxWidth: .infinity)
@@ -110,9 +115,11 @@ private struct HomeCalendarView: View {
                                 .foregroundStyle(isToday ? selectedForeground : Color.primary)
                                 .frame(width: 28, height: 28)
                                 .background(isToday ? themeColor : .clear, in: Circle())
-                            if let display = summary?.displayAmount(filter: store.calendarFilter) {
-                                Text("\(display.income ? "+" : "-")\(compact(display.amount))")
-                                    .foregroundStyle(display.income ? themeColor : Color.red)
+                            if let displayAmount = summary?.displayAmountMinor {
+                                Text("\(summary?.displayIsIncome == true ? "+" : "-")\(compact(displayAmount))")
+                                    .foregroundStyle(summary?.displayIsIncome == true ? themeColor : Color.red)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
                             }
                         }
                         .font(.caption2)
@@ -133,35 +140,37 @@ private struct HomeCalendarView: View {
     }
     private var summaries: [Date: CalendarDayUI] { Dictionary(uniqueKeysWithValues: store.calendarDays.map { (Calendar.current.startOfDay(for: $0.date), $0) }) }
     private func date(_ day: Int) -> Date { Calendar.current.date(byAdding: .day, value: day - 1, to: interval.start) ?? interval.start }
-    private func compact(_ minor: Int64) -> String { minor >= 10_000 ? "\(minor / 10_000)百" : "\(minor / 100)" }
+    private func compact(_ minor: Int64) -> String { "\(minor / 100)" }
 }
 
 private struct DateTransactionDetailView: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.appThemeColor) private var themeColor
     @State private var displayMode: TransactionDisplayMode = .card
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 18) {
-                        Text("支出 \(store.dateDetailExpenseMinor.wholeRmb)")
-                        Text("收入 \(store.dateDetailIncomeMinor.wholeRmb)")
+                    HStack(spacing: 22) {
+                        Text("支出 \(store.dateDetailExpenseMinor.wholeRmb)").foregroundStyle(.red)
+                        Text("收入 \(store.dateDetailIncomeMinor.wholeRmb)").foregroundStyle(themeColor)
                         Spacer()
-                        Button(displayMode.label) {
+                        Button {
                             displayMode = displayMode == .card ? .list : .card
+                        } label: {
+                            Image(systemName: displayMode == .list ? "square.grid.2x2" : "list.bullet")
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                     }
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
                     if store.dateDetailTransactions.isEmpty {
                         EmptyStateView(title: "当天暂无明细", systemImage: "calendar", detail: "这一天没有记录")
                     } else {
                         TransactionCollectionView(items: store.dateDetailTransactions, displayMode: displayMode) { item in
-                            store.showTransactionDetail(item)
                             store.dismissDateDetail()
+                            DispatchQueue.main.async { store.showTransactionDetail(item) }
                         }
                     }
                 }
@@ -177,6 +186,7 @@ private struct DateTransactionDetailView: View {
 }
 
 private struct TransactionGroupsView: View {
+    @Environment(\.appThemeColor) private var themeColor
     let items: [TransactionUI]
     let displayMode: TransactionDisplayMode
     let onEdit: (TransactionUI) -> Void
@@ -187,8 +197,15 @@ private struct TransactionGroupsView: View {
                 HStack {
                     Text(group.date.formatted(date: .abbreviated, time: .omitted)).font(.headline)
                     Spacer()
-                    Text(group.netMinor.wholeRmb)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 16) {
+                        if group.expenseMinor != 0 {
+                            Text("支出 \(group.expenseMinor.wholeRmb)").foregroundStyle(.red)
+                        }
+                        if group.incomeMinor != 0 {
+                            Text("收入 \(group.incomeMinor.wholeRmb)").foregroundStyle(themeColor)
+                        }
+                    }
+                    .font(.caption.weight(.semibold))
                 }
                 TransactionCollectionView(items: group.items, displayMode: displayMode, onEdit: onEdit)
             }
@@ -206,9 +223,8 @@ private struct DayGroup: Identifiable {
     let date: Date
     let items: [TransactionUI]
     var id: Date { date }
-    var netMinor: Int64 {
-        items.reduce(0) { total, item in total + (item.type == .income ? item.amountMinor : -item.amountMinor) }
-    }
+    var expenseMinor: Int64 { items.filter { $0.type == .expense }.map(\.amountMinor).reduce(0, +) }
+    var incomeMinor: Int64 { items.filter { $0.type == .income }.map(\.amountMinor).reduce(0, +) }
 }
 
 private struct TransactionCollectionView: View {
@@ -220,8 +236,8 @@ private struct TransactionCollectionView: View {
         if displayMode == .list {
             VStack(spacing: 8) { ForEach(items) { TransactionRow(item: $0, onEdit: onEdit) } }
         } else {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 10)], spacing: 10) {
-                ForEach(items) { TransactionRow(item: $0, onEdit: onEdit) }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2), spacing: 8) {
+                ForEach(items) { TransactionCard(item: $0, onEdit: onEdit) }
             }
         }
     }
@@ -230,6 +246,7 @@ private struct TransactionCollectionView: View {
 private struct TransactionRow: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.appThemeColor) private var themeColor
     let item: TransactionUI
     let onEdit: (TransactionUI) -> Void
 
@@ -243,14 +260,52 @@ private struct TransactionRow: View {
                 )
                 VStack(alignment: .leading) {
                     Text(item.categoryDisplayName).fontWeight(.medium)
-                    Text("\(item.accountName) · \(item.note)").font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    Text(item.note.isEmpty ? item.accountName : "\(item.accountName) · \(item.note)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
                 Spacer()
                 VStack(alignment: .trailing) {
-                    Text((item.type == .expense ? -item.amountMinor : item.amountMinor).rmb)
+                    Text("\(item.type == .expense ? "−" : "+")\(item.amountMinor.rmb)")
+                        .foregroundStyle(item.type == .expense ? Color.red : themeColor)
+                        .fontWeight(.semibold)
                     Text(item.date.formatted(date: .omitted, time: .shortened)).font(.caption).foregroundStyle(.secondary)
                 }
             }
+            .padding(12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .liquidGlassSurface(cornerRadius: 14, interactive: true)
+    }
+}
+
+private struct TransactionCard: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.appThemeColor) private var themeColor
+    let item: TransactionUI
+    let onEdit: (TransactionUI) -> Void
+
+    var body: some View {
+        Button { onEdit(item) } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    SVGIconView(
+                        key: categoryIconAssetKey(item.categoryIconKey),
+                        size: 28,
+                        tint: (AppThemeColor(rawValue: store.themeColor) ?? .lavender).cssColor(for: colorScheme)
+                    )
+                    Spacer()
+                    Text("\(item.type == .expense ? "−" : "+")\(item.amountMinor.rmb)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(item.type == .expense ? Color.red : themeColor)
+                }
+                Text(item.categoryDisplayName).fontWeight(.semibold).lineLimit(1)
+                Text(item.accountName).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
             .contentShape(Rectangle())
         }
@@ -321,8 +376,7 @@ private struct CalendarFilterPicker: View {
         Button { store.setCalendarFilter(value) } label: {
             Image(systemName: systemImage)
                 .frame(width: 34, height: 34)
-                .background(store.calendarFilter == value ? themeColor : Color.clear, in: Circle())
-                .liquidGlassCircle(interactive: true)
+                .liquidGlassCircle(interactive: true, tint: store.calendarFilter == value ? themeColor : nil)
         }
         .buttonStyle(.plain)
         .foregroundStyle(store.calendarFilter == value ? selectedForeground : Color.secondary)
@@ -332,6 +386,8 @@ private struct CalendarFilterPicker: View {
 }
 
 private struct MonthlyBalanceCard: View {
+    @Environment(\.appThemeColor) private var themeColor
+    @Environment(\.appThemeSelectionForeground) private var selectedForeground
     let expense: Int64
     let income: Int64
 
@@ -346,9 +402,9 @@ private struct MonthlyBalanceCard: View {
             }
             .font(.subheadline)
         }
-        .foregroundStyle(.primary)
+        .foregroundStyle(selectedForeground)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .liquidGlassSurface(cornerRadius: 18)
+        .liquidGlassSurface(cornerRadius: 18, tint: themeColor)
     }
 }

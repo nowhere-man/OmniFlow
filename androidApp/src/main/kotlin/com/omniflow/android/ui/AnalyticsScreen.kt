@@ -23,8 +23,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.ArrowBackIosNew
-import androidx.compose.material.icons.filled.ArrowForwardIos
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -150,7 +150,7 @@ internal fun AnalyticsScreen(
                     fontWeight = FontWeight.SemiBold,
                 )
                 IconButton(onClick = { onShiftRange(1) }) {
-                    Icon(Icons.Default.ArrowForwardIos, contentDescription = "下一个范围")
+                    Icon(Icons.AutoMirrored.Filled.ArrowForwardIos, contentDescription = "下一个范围")
                 }
             }
         }

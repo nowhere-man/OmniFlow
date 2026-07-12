@@ -930,12 +930,16 @@ final class AppStore: ObservableObject {
                 self?.expenseMinor = value?.summary.expenseTotal ?? 0
                 self?.incomeMinor = value?.summary.incomeTotal ?? 0
                 self?.transactions = value?.groups.flatMap { $0.items }.map { Self.transaction($0) } ?? []
-                self?.calendarDays = value?.calendar.map {
+                let filterName = self?.calendarFilter ?? "ALL"
+                self?.calendarDays = value?.calendar.map { summary in
+                    let display = self?.bridge.calendarDisplayAmount(summary: summary, filterName: filterName)
                     CalendarDayUI(
-                        id: "\($0.date.year)-\($0.date.monthNumber)-\($0.date.dayOfMonth)",
-                        date: Self.date(year: Int($0.date.year), month: Int($0.date.monthNumber), day: Int($0.date.dayOfMonth)),
-                        expenseMinor: $0.expenseTotal,
-                        incomeMinor: $0.incomeTotal
+                        id: "\(summary.date.year)-\(summary.date.monthNumber)-\(summary.date.dayOfMonth)",
+                        date: Self.date(year: Int(summary.date.year), month: Int(summary.date.monthNumber), day: Int(summary.date.dayOfMonth)),
+                        expenseMinor: summary.expenseTotal,
+                        incomeMinor: summary.incomeTotal,
+                        displayAmountMinor: display?.amount,
+                        displayIsIncome: display?.isIncome ?? false
                     )
                 } ?? []
             }
@@ -1018,7 +1022,8 @@ final class AppStore: ObservableObject {
             note: value.note ?? "",
             excluded: value.isExcluded,
             source: value.source.map { String(describing: $0).components(separatedBy: ".").last ?? "" },
-            tagNames: tagNames
+            tagNames: tagNames,
+            categoryDisplayName: value.categoryDisplayName
         )
     }
 

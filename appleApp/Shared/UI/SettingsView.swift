@@ -103,9 +103,40 @@ extension View {
 struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
 
+    @ViewBuilder
     var body: some View {
+        #if os(macOS)
+        Form {
+            Section("安全") {
+                Toggle("应用锁", isOn: Binding(get: { store.appLockEnabled }, set: store.setAppLockEnabled))
+                Text("打开应用时验证设备密码或生物识别")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Section("外观") {
+                Picker("界面外观", selection: Binding(get: { store.appearanceMode }, set: store.setAppearanceMode)) {
+                    Text("跟随系统").tag("SYSTEM")
+                    Text("浅色").tag("LIGHT")
+                    Text("深色").tag("DARK")
+                }
+                .pickerStyle(.segmented)
+                ThemeColorPicker()
+            }
+            Section("数据") {
+                NavigationLink { DataManagementView() } label: {
+                    Label("数据管理", systemImage: "externaldrive.badge.icloud")
+                }
+                Text("iCloud、WebDAV、备份与恢复")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .padding(20)
+        .navigationTitle("设置")
+        #else
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: 28) {
                 SettingsSection(title: "安全") {
                     SettingsRow(systemImage: "lock.shield", title: "应用锁", detail: "打开应用时验证设备密码或生物识别") {
                         Toggle("", isOn: Binding(get: { store.appLockEnabled }, set: store.setAppLockEnabled))
@@ -118,42 +149,19 @@ struct SettingsView: View {
                         SettingsRow(systemImage: "circle.lefthalf.filled", title: "界面外观", detail: "跟随系统或固定显示模式") {
                             EmptyView()
                         }
-                        Picker("界面外观", selection: Binding(get: { store.appearanceMode }, set: store.setAppearanceMode)) {
-                            Text("跟随系统").tag("SYSTEM")
-                            Text("浅色").tag("LIGHT")
-                            Text("深色").tag("DARK")
-                        }
-                        .pickerStyle(.segmented)
-                    }
-                    Divider()
-                    VStack(alignment: .leading, spacing: 14) {
-                        Label("主题色", systemImage: "paintpalette").font(.headline)
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 16) {
-                                ForEach(AppThemeColor.allCases) { theme in
-                                    Button { store.setThemeColor(theme.rawValue) } label: {
-                                        VStack(spacing: 7) {
-                                            Circle()
-                                                .fill(theme.color(for: .light))
-                                                .frame(width: 32, height: 32)
-                                                .overlay {
-                                                    Circle().stroke(store.themeColor == theme.rawValue ? Color.primary : .clear, lineWidth: 2.5)
-                                                }
-                                                .padding(3)
-                                            Text(theme.label)
-                                                .font(.caption)
-                                                .foregroundStyle(.primary)
-                                                .lineLimit(1)
-                                        }
-                                        .frame(width: 62)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel(theme.label)
-                                    .accessibilityAddTraits(store.themeColor == theme.rawValue ? .isSelected : [])
-                                }
+                        ThemeSegmentedControl(
+                            selection: Binding(get: { store.appearanceMode }, set: store.setAppearanceMode),
+                            options: ["SYSTEM", "LIGHT", "DARK"]
+                        ) { value in
+                            switch value {
+                            case "LIGHT": return "浅色"
+                            case "DARK": return "深色"
+                            default: return "跟随系统"
                             }
                         }
                     }
+                    Divider()
+                    ThemeColorPicker()
                 }
 
                 SettingsSection(title: "数据") {
@@ -165,12 +173,58 @@ struct SettingsView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(20)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 24)
         }
         .navigationTitle("设置")
-        #if os(macOS)
-        .frame(width: 560, height: 500)
         #endif
+    }
+}
+
+private struct ThemeColorPicker: View {
+    @EnvironmentObject private var store: AppStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("主题色", systemImage: "paintpalette").font(.headline)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    ForEach(AppThemeColor.allCases) { theme in
+                        ThemeColorOptionButton(
+                            theme: theme,
+                            selected: store.themeColor == theme.rawValue
+                        ) { store.setThemeColor(theme.rawValue) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct ThemeColorOptionButton: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let theme: AppThemeColor
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 7) {
+                Circle()
+                    .fill(theme.color(for: colorScheme))
+                    .frame(width: 30, height: 30)
+                    .overlay { Circle().stroke(selected ? Color.primary : .clear, lineWidth: 2.5) }
+                    .padding(3)
+                Text(theme.label)
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+            .frame(width: 60)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(theme.label)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
@@ -181,8 +235,8 @@ private struct SettingsSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 14) { content }
-                .padding(16)
+            VStack(alignment: .leading, spacing: 18) { content }
+                .padding(18)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .liquidGlassSurface(cornerRadius: 18)
         }
@@ -190,6 +244,7 @@ private struct SettingsSection<Content: View>: View {
 }
 
 private struct SettingsRow<Accessory: View>: View {
+    @Environment(\.appThemeColor) private var themeColor
     let systemImage: String
     let title: String
     let detail: String
@@ -199,7 +254,7 @@ private struct SettingsRow<Accessory: View>: View {
         HStack(spacing: 13) {
             Image(systemName: systemImage)
                 .font(.body.weight(.semibold))
-                .foregroundStyle(.tint)
+                .foregroundStyle(themeColor)
                 .frame(width: 26)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).fontWeight(.medium)
@@ -208,7 +263,7 @@ private struct SettingsRow<Accessory: View>: View {
             Spacer(minLength: 12)
             accessory
         }
-        .frame(minHeight: 48)
+        .frame(minHeight: 56)
         .contentShape(Rectangle())
     }
 }

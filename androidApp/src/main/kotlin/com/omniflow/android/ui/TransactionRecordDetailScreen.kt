@@ -14,14 +14,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Label
-import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.SyncAlt
@@ -147,14 +147,14 @@ internal fun TransactionRecordDetailSheet(
                     transaction.note?.takeIf(String::isNotBlank)?.let { note ->
                         item {
                             DetailSection {
-                                DetailRow(Icons.Default.Notes, "备注", note)
+                                DetailRow(Icons.AutoMirrored.Filled.Notes, "备注", note)
                             }
                         }
                     }
                     if (state.tagNames.isNotEmpty()) {
                         item {
                             DetailSection {
-                                DetailRow(Icons.Default.Label, "标签", state.tagNames.joinToString(" · "))
+                                DetailRow(Icons.AutoMirrored.Filled.Label, "标签", state.tagNames.joinToString(" · "))
                             }
                         }
                     }

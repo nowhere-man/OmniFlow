@@ -22,7 +22,10 @@ struct TransactionEditorView: View {
             .editorNavigationChrome()
             .onAppear(perform: loadDraft)
             .onChange(of: store.transactionDraftRevision) { _ in loadDraft() }
-            .onChange(of: ledgerID) { store.selectResourceLedger($0.isEmpty ? nil : $0) }
+            .onChange(of: ledgerID) { value in
+                if store.editingTransaction?.ledgerID != value { categoryID = "" }
+                store.selectResourceLedger(value.isEmpty ? nil : value)
+            }
             .onChange(of: type) { value in
                 if let category = store.categories.first(where: { $0.id == categoryID }), category.type != value {
                     categoryID = ""
@@ -219,10 +222,7 @@ private struct TransactionTopBar: View {
             }
             .accessibilityLabel(store.ledgers.first { $0.id == ledgerID }?.name ?? "选择账本")
 
-            Picker("类型", selection: $type) {
-                ForEach(EntryType.allCases) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
+            ThemeSegmentedControl(selection: $type, options: EntryType.allCases, title: \.label)
             .frame(maxWidth: 220)
 
             Menu {
@@ -264,15 +264,7 @@ private struct TransactionCategoryPicker: View {
             if primaryCategories.isEmpty {
                 Text("选择账本后加载分类").font(.subheadline).foregroundStyle(.secondary)
             } else {
-                #if os(iOS)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHGrid(rows: columns, spacing: 6) { categoryTiles }
-                        .padding(.vertical, 2)
-                }
-                .frame(height: 146)
-                #else
                 LazyVGrid(columns: columns, spacing: 4) { categoryTiles }
-                #endif
             }
             if let primary = selectedPrimary {
                 VStack(alignment: .leading, spacing: 8) {
@@ -316,7 +308,7 @@ private struct TransactionCategoryPicker: View {
     }
     private var columns: [GridItem] {
         #if os(iOS)
-        return Array(repeating: GridItem(.fixed(68), spacing: 6), count: 2)
+        return Array(repeating: GridItem(.flexible(), spacing: 4), count: 5)
         #else
         return [GridItem(.adaptive(minimum: 76), spacing: 6)]
         #endif
@@ -324,7 +316,11 @@ private struct TransactionCategoryPicker: View {
 
     @ViewBuilder private var categoryTiles: some View {
         ForEach(orderedPrimaryCategories) { category in
-            CategoryTile(category: category, selected: primaryID == category.id) { selectedID = category.id }
+            CategoryTile(
+                category: category,
+                selected: primaryID == category.id,
+                dragging: draggedCategory?.id == category.id
+            ) { selectedID = category.id }
                 .onDrag {
                     draggedCategory = category
                     return NSItemProvider(object: category.id as NSString)
@@ -371,6 +367,7 @@ private struct CategoryTile: View {
     @Environment(\.appThemeSelectionForeground) private var selectedForeground
     let category: CategoryUI
     let selected: Bool
+    let dragging: Bool
     let action: () -> Void
 
     var body: some View {
@@ -385,13 +382,15 @@ private struct CategoryTile: View {
                 )
                 Text(category.name).font(.caption.weight(selected ? .bold : .medium)).lineLimit(1)
             }
-            .frame(width: 68, height: 68)
+            .frame(maxWidth: .infinity, minHeight: 68)
             .foregroundStyle(selected ? selectedForeground : Color.primary)
-            .background(selected ? themeColor : Color.clear, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay { RoundedRectangle(cornerRadius: 14).stroke(selected ? Color.clear : Color.secondary.opacity(0.16), lineWidth: 1) }
         }
         .buttonStyle(.plain)
-        .liquidGlassSurface(cornerRadius: 14, interactive: true)
+        .liquidGlassSurface(cornerRadius: 14, interactive: true, tint: selected ? themeColor : nil)
+        .scaleEffect(dragging ? 1.06 : 1)
+        .shadow(color: .black.opacity(dragging ? 0.18 : 0), radius: 10, y: 5)
+        .animation(.spring(response: 0.24, dampingFraction: 0.82), value: dragging)
         .accessibilityLabel(category.name)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
@@ -407,7 +406,34 @@ private struct TransactionAmountPanel: View {
     let onDone: () -> Void
     private let rows = [["1", "2", "3", "+"], ["4", "5", "6", "-"], ["7", "8", "9", "再记"], [".", "0", "退格", "完成"]]
 
+    @ViewBuilder
     var body: some View {
+        #if os(macOS)
+        VStack(alignment: .leading, spacing: 16) {
+            Text("金额").font(.headline)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("¥").font(.title2.weight(.semibold)).foregroundStyle(.secondary)
+                TextField("0.00", text: $amount)
+                    .textFieldStyle(.plain)
+                    .font(.largeTitle.bold().monospacedDigit())
+                    .multilineTextAlignment(.trailing)
+            }
+            .padding(14)
+            .liquidGlassSurface(cornerRadius: 14, interactive: true)
+            if let message { Text(message).font(.caption).foregroundStyle(.red) }
+            Spacer()
+            HStack {
+                Button("再记", action: onAgain)
+                    .buttonStyle(.bordered)
+                Spacer()
+                Button(saving ? "保存中" : "完成", action: onDone)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+            .disabled(saving)
+        }
+        .padding(18)
+        #else
         LiquidGlassContainer(spacing: 6) {
             VStack(spacing: 7) {
                 HStack {
@@ -422,6 +448,7 @@ private struct TransactionAmountPanel: View {
             }
             .padding(12)
         }
+        #endif
     }
 
     private func keypadButton(_ key: String) -> some View {
@@ -433,10 +460,13 @@ private struct TransactionAmountPanel: View {
         }
         .frame(maxWidth: .infinity, minHeight: 44)
         .foregroundStyle(done ? selectedForeground : operation ? themeColor : Color.primary)
-        .font(.body.weight(done || again || operation ? .bold : .semibold))
+        .font(done || again || key == "退格" ? .headline.weight(.bold) : .title2.weight(.bold))
         .buttonStyle(.plain)
-        .background(done ? themeColor : again ? themeColor.opacity(0.14) : Color.clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .liquidGlassSurface(cornerRadius: 12, interactive: true)
+        .liquidGlassSurface(
+            cornerRadius: 12,
+            interactive: true,
+            tint: done ? themeColor : again ? themeColor.opacity(0.16) : nil
+        )
         .disabled(saving)
     }
 

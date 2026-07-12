@@ -23,10 +23,7 @@ struct AnalyticsView: View {
                         Image(systemName: "books.vertical")
                     }
                     .accessibilityLabel("选择统计账本")
-                    Picker("范围", selection: $mode) {
-                        ForEach(RangeMode.allCases) { Text($0.label).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
+                    ThemeSegmentedControl(selection: $mode, options: RangeMode.allCases, title: \.label)
                 }
                 if mode == .custom {
                     HStack(spacing: 8) {
@@ -65,24 +62,23 @@ struct AnalyticsView: View {
                     }
                     Button("查看年度账单") { store.loadAnalyticsStatement(year: Calendar.current.component(.year, from: anchor)) }
                     VStack(alignment: .leading, spacing: 10) {
-                    Picker("排行榜", selection: $store.analyticsRankingType) {
-                        ForEach(EntryType.allCases) { Text($0.label).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    HStack {
-                        Picker("分类收支", selection: $store.analyticsCategoryType) {
-                            ForEach(EntryType.allCases) { Text($0.label).tag($0) }
-                        }
-                        Picker("分类层级", selection: $store.analyticsCategoryGranularity) {
-                            ForEach(AppleCategoryGranularity.allCases) { Text($0.label).tag($0) }
-                        }
+                    ThemeSegmentedControl(selection: $store.analyticsRankingType, options: EntryType.allCases, title: \.label)
+                    HStack(spacing: 10) {
+                        ThemeSegmentedControl(selection: $store.analyticsCategoryType, options: EntryType.allCases, title: \.label)
+                        ThemeSegmentedControl(
+                            selection: $store.analyticsCategoryGranularity,
+                            options: AppleCategoryGranularity.allCases,
+                            title: \.label
+                        )
                     }
                 }
                     Group {
                     AnalyticsCard(title: "收支趋势") {
-                        HStack {
-                            Toggle("收入", isOn: $showIncome).toggleStyle(.button)
-                            Toggle("支出", isOn: $showExpense).toggleStyle(.button)
+                        HStack(spacing: 8) {
+                            Button("收入") { showIncome.toggle() }
+                                .buttonStyle(SelectablePillButtonStyle(selected: showIncome))
+                            Button("支出") { showExpense.toggle() }
+                                .buttonStyle(SelectablePillButtonStyle(selected: showExpense))
                         }
                         TrendChart(points: store.analyticsPoints, showIncome: showIncome, showExpense: showExpense)
                     }

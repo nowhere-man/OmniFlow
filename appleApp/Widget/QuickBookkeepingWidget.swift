@@ -34,7 +34,7 @@ struct QuickBookkeepingWidgetView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 32, weight: .semibold))
-                        .foregroundStyle(.tint)
+                        .foregroundStyle(Color(red: 0.46, green: 0.40, blue: 0.62))
                     Spacer(minLength: 0)
                     Text("快速记账")
                         .font(.headline)

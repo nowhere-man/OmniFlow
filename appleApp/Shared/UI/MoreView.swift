@@ -38,6 +38,7 @@ struct MoreView: View {
 }
 
 private struct ModuleSection: View {
+    @Environment(\.appThemeColor) private var themeColor
     let title: String
     let modules: [(String, String)]
 
@@ -50,14 +51,14 @@ private struct ModuleSection: View {
                         HStack(spacing: 12) {
                             Image(systemName: module.1)
                                 .frame(width: 24)
-                                .foregroundStyle(.tint)
+                                .foregroundStyle(themeColor)
                             Text(module.0).foregroundStyle(.primary)
                             Spacer()
                             Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
                         }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 14)
-                            .padding(.vertical, 14)
+                            .padding(.vertical, 16)
                     }
                     .buttonStyle(.plain)
                     if module.0 != modules.last?.0 { Divider() }
@@ -132,7 +133,7 @@ struct DataManagementView: View {
     }
 }
 
-private struct ModuleView: View {
+struct ModuleView: View {
     let title: String
 
     @ViewBuilder
@@ -709,11 +710,10 @@ private struct CategoryIconOptionButton: View {
             }
             .frame(maxWidth: .infinity, minHeight: 58)
             .foregroundStyle(selected ? selectedForeground : Color.primary)
-            .background(selected ? themeColor : Color.clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay { RoundedRectangle(cornerRadius: 10).stroke(selected ? Color.clear : Color.secondary.opacity(0.15), lineWidth: 1) }
         }
         .buttonStyle(.plain)
-        .liquidGlassSurface(cornerRadius: 10, interactive: true)
+        .liquidGlassSurface(cornerRadius: 10, interactive: true, tint: selected ? themeColor : nil)
         .accessibilityLabel(option.label)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
