@@ -75,14 +75,18 @@ data class HomeUiState(
     val isLedgerMenuExpanded: Boolean = false,
     val isLoading: Boolean = true,
     val error: String? = null,
-    val selectedDate: TransactionDetailState? = null,
-    val selectedDateScope: LedgerScope? = null,
-    val isDateLoading: Boolean = false,
-    val dateError: String? = null,
     val displayMode: TransactionDetailDisplayMode = TransactionDetailDisplayMode.LIST,
     val appearanceMode: AppearanceMode = AppearanceMode.SYSTEM,
     val calendarFilter: CalendarTransactionFilter = CalendarTransactionFilter.ALL,
 )
+
+data class RangeDetailUiState(
+    val detail: TransactionDetailState? = null,
+    val isLoading: Boolean = false,
+    val error: String? = null,
+) {
+    val isVisible: Boolean get() = isLoading || detail != null || error != null
+}
 
 enum class AnalyticsRangeMode { WEEK, MONTH, YEAR, CUSTOM }
 
@@ -181,6 +185,8 @@ class OmniFlowViewModel(
     val homeUiState: StateFlow<HomeUiState> = _homeUiState.asStateFlow()
     private val _analyticsUiState = MutableStateFlow(AnalyticsUiState())
     val analyticsUiState: StateFlow<AnalyticsUiState> = _analyticsUiState.asStateFlow()
+    private val _rangeDetailUiState = MutableStateFlow(RangeDetailUiState())
+    val rangeDetailUiState: StateFlow<RangeDetailUiState> = _rangeDetailUiState.asStateFlow()
     private val _searchUiState = MutableStateFlow(SearchUiState())
     val searchUiState: StateFlow<SearchUiState> = _searchUiState.asStateFlow()
     private val _transactionRecordDetailUiState = MutableStateFlow(TransactionRecordDetailUiState())
@@ -196,8 +202,6 @@ class OmniFlowViewModel(
     private var preferences = AppPreferences()
     private var defaultLedgerId: String? = null
     private var editingTransaction: Transaction? = null
-    private var selectedDate: LocalDate? = null
-
     private var homeJob: Job? = null
     private var detailJob: Job? = null
     private var analyticsJob: Job? = null
@@ -314,22 +318,18 @@ class OmniFlowViewModel(
         savePreferences(preferences.copy(homeLedgerScope = scope))
     }
     fun showDate(date: LocalDate) {
-        selectedDate = date
-        showDate(date, homeQuery.scope)
-    }
-    fun selectDateScope(scope: LedgerScope) {
-        selectedDate?.let { showDate(it, scope) }
+        showTransactionDetails(dateRange(date), homeQuery.scope, null)
     }
     fun dismissDate() {
         detailJob?.cancel()
-        selectedDate = null
-        _homeUiState.value = _homeUiState.value.copy(
-            selectedDate = null,
-            selectedDateScope = null,
-            isDateLoading = false,
-            dateError = null,
-        )
+        _rangeDetailUiState.value = RangeDetailUiState()
     }
+    fun showHomeSummary(type: TransactionType?) = showTransactionDetails(homeQuery.month, homeQuery.scope, type)
+    fun showAnalyticsSummary(type: TransactionType?) = showTransactionDetails(
+        _analyticsUiState.value.range,
+        _analyticsUiState.value.scope,
+        type,
+    )
     fun toggleDisplayMode() {
         val mode = when (_homeUiState.value.displayMode) {
             TransactionDetailDisplayMode.LIST -> TransactionDetailDisplayMode.CARD
@@ -339,21 +339,15 @@ class OmniFlowViewModel(
         savePreferences(preferences.copy(transactionDetailDisplayMode = mode))
     }
 
-    private fun showDate(date: LocalDate, scope: LedgerScope) {
+    private fun showTransactionDetails(range: DateRange, scope: LedgerScope, type: TransactionType?) {
         detailJob?.cancel()
-        _homeUiState.value = _homeUiState.value.copy(
-            selectedDate = null,
-            selectedDateScope = scope,
-            isDateLoading = true,
-            dateError = null,
-        )
+        _rangeDetailUiState.value = RangeDetailUiState(isLoading = true)
         detailJob = viewModelScope.launch {
-            sharedApp.home.observeTransactionDetails(TransactionDetailQuery(scope, dateRange(date))).collect { result ->
-                _homeUiState.value = _homeUiState.value.copy(
-                    selectedDate = result.getOrNull(),
-                    selectedDateScope = scope,
-                    isDateLoading = false,
-                    dateError = result.exceptionOrNull()?.message,
+            sharedApp.home.observeTransactionDetails(TransactionDetailQuery(scope, range, type)).collect { result ->
+                _rangeDetailUiState.value = RangeDetailUiState(
+                    detail = result.getOrNull(),
+                    isLoading = false,
+                    error = result.exceptionOrNull()?.message,
                 )
             }
         }

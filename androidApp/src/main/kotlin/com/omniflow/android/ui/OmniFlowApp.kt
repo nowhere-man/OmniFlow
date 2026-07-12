@@ -119,6 +119,7 @@ private val IncomeColor = Color(0xFF2E7D32)
 fun OmniFlowApp(viewModel: OmniFlowViewModel) {
     val homeState by viewModel.homeUiState.collectAsState()
     val analyticsState by viewModel.analyticsUiState.collectAsState()
+    val rangeDetailState by viewModel.rangeDetailUiState.collectAsState()
     val searchState by viewModel.searchUiState.collectAsState()
     val transactionState by viewModel.transactionUiState.collectAsState()
     val transactionRecordDetailState by viewModel.transactionRecordDetailUiState.collectAsState()
@@ -148,7 +149,9 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
         }
     }
     BackHandler {
-        if (transactionRecordDetailState.isVisible) {
+        if (rangeDetailState.isVisible) {
+            viewModel.dismissDate()
+        } else if (transactionRecordDetailState.isVisible) {
             viewModel.dismissTransactionRecordDetail()
         } else if (destination == MainDestination.ADD) {
             destination = MainDestination.HOME
@@ -226,8 +229,8 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
                     onLedgerSelected = viewModel::selectLedger,
                     onDateSelected = viewModel::showDate,
                     onMonthSelected = viewModel::selectHomeMonth,
+                    onSummary = viewModel::showHomeSummary,
                     onToggleDisplayMode = viewModel::toggleDisplayMode,
-                    onDismissDate = viewModel::dismissDate,
                     onAdd = { date, ledgerId ->
                         viewModel.startNewTransaction(date, ledgerId)
                         destination = MainDestination.ADD
@@ -249,6 +252,7 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
                     onShiftRange = viewModel::shiftAnalyticsRange,
                     onCurrentRange = viewModel::resetAnalyticsRange,
                     onCustomRange = viewModel::setAnalyticsCustomRange,
+                    onSummary = viewModel::showAnalyticsSummary,
                     onRankingType = viewModel::setRankingType,
                     onCategoryAnalysis = viewModel::setCategoryAnalysis,
                     onCategoryDrillDown = viewModel::setCategoryDrillDown,
@@ -303,6 +307,18 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
                     modifier = Modifier.padding(padding),
                 )
             }
+        }
+        if (rangeDetailState.isVisible) {
+            DateDetailSheet(
+                state = rangeDetailState.detail,
+                isLoading = rangeDetailState.isLoading,
+                error = rangeDetailState.error,
+                onDismiss = viewModel::dismissDate,
+                onEdit = { transactionId ->
+                    viewModel.dismissDate()
+                    viewModel.showTransactionRecordDetail(transactionId)
+                },
+            )
         }
         if (transactionRecordDetailState.isVisible) {
             TransactionRecordDetailSheet(
@@ -432,8 +448,8 @@ private fun HomeScreen(
     onLedgerSelected: (LedgerScope) -> Unit,
     onDateSelected: (LocalDate) -> Unit,
     onMonthSelected: (LocalDate) -> Unit,
+    onSummary: (TransactionType?) -> Unit,
     onToggleDisplayMode: () -> Unit,
-    onDismissDate: () -> Unit,
     onAdd: (LocalDate?, String?) -> Unit,
     onEdit: (String) -> Unit,
     onManageLedgers: () -> Unit,
@@ -465,7 +481,7 @@ private fun HomeScreen(
                     MonthSelector(home.month.startInclusive.toLocalDateTime(ChinaTimeZone).date, onPreviousMonth, onNextMonth, onMonthSelected)
                     Spacer(Modifier.weight(1f))
                 }
-                MonthlySummary(home.summary.expenseTotal, home.summary.incomeTotal)
+                HomeSummary(home.summary.expenseTotal, home.summary.incomeTotal, onSummary)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     CalendarFilter(state.calendarFilter, onCalendarFilter)
                 }
@@ -514,15 +530,6 @@ private fun HomeScreen(
             }
         }
 
-        if (state.isDateLoading || state.selectedDate != null || state.dateError != null) {
-            DateDetailSheet(
-                state = state.selectedDate,
-                isLoading = state.isDateLoading,
-                error = state.dateError,
-                onDismiss = onDismissDate,
-                onEdit = onEdit,
-            )
-        }
     }
 }
 
@@ -587,23 +594,39 @@ private fun MonthSelector(month: LocalDate, onPrevious: () -> Unit, onNext: () -
 }
 
 @Composable
-private fun MonthlySummary(expense: Money, income: Money) {
-    Surface(
-        color = MaterialTheme.colorScheme.primary,
-        contentColor = MaterialTheme.colorScheme.onPrimary,
-        shape = RoundedCornerShape(8.dp),
+private fun HomeSummary(expense: Money, income: Money, onSummary: (TransactionType?) -> Unit) {
+    val net = income - expense
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        HomeSummaryCard("总支出", expense, ExpenseColor, { onSummary(TransactionType.EXPENSE) }, Modifier.weight(1f))
+        HomeSummaryCard("总收入", income, IncomeColor, { onSummary(TransactionType.INCOME) }, Modifier.weight(1f))
+        HomeSummaryCard(
+            "总结余",
+            net,
+            if (net.minor >= 0) MaterialTheme.colorScheme.primary else ExpenseColor,
+            { onSummary(null) },
+            Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun HomeSummaryCard(label: String, amount: Money, color: Color, onClick: () -> Unit, modifier: Modifier) {
+    Card(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.12f)),
     ) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("本月结余", style = MaterialTheme.typography.labelLarge)
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
-                (income - expense).asRmb(),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold,
+                amount.asRmb(),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = color,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                SummaryAmount("支出", expense, MaterialTheme.colorScheme.onPrimary)
-                SummaryAmount("收入", income, MaterialTheme.colorScheme.onPrimary)
-            }
         }
     }
 }
@@ -888,7 +911,7 @@ private fun DateDetailSheet(
     onDismiss: () -> Unit,
     onEdit: (String) -> Unit,
 ) {
-    var displayMode by remember(state?.date?.startInclusive) {
+    var displayMode by remember(state?.date?.startInclusive, state?.type) {
         mutableStateOf(TransactionDetailDisplayMode.CARD)
     }
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -899,9 +922,8 @@ private fun DateDetailSheet(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                val date = state.date.startInclusive.toLocalDateTime(ChinaTimeZone).date
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(date.displayName(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    Text(state.date.detailLabel(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.weight(1f))
                     IconButton(onClick = {
                         displayMode = when (displayMode) {
@@ -916,11 +938,11 @@ private fun DateDetailSheet(
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    SummaryAmount("当日支出", state.summary.expenseTotal, ExpenseColor)
-                    SummaryAmount("当日收入", state.summary.incomeTotal, IncomeColor)
+                    if (state.type != TransactionType.INCOME) SummaryAmount("支出", state.summary.expenseTotal, ExpenseColor)
+                    if (state.type != TransactionType.EXPENSE) SummaryAmount("收入", state.summary.incomeTotal, IncomeColor)
                 }
                 TransactionItems(state.items, displayMode, onEdit)
-                if (state.items.isEmpty()) Text("当日暂无交易")
+                if (state.items.isEmpty()) Text("当前范围暂无交易")
                 Spacer(Modifier.height(20.dp))
             }
         }

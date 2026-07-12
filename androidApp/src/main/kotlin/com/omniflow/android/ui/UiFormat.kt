@@ -39,6 +39,13 @@ internal fun DateRange.displayLabel(mode: AnalyticsRangeMode): String {
     }
 }
 
+internal fun DateRange.detailLabel(): String {
+    val start = startInclusive.toLocalDateTime(ChinaTimeZone).date
+    val end = Instant.fromEpochMilliseconds(endExclusive.toEpochMilliseconds() - 1)
+        .toLocalDateTime(ChinaTimeZone).date
+    return if (start == end) start.displayName() else "${start.fullDate()} 至 ${end.fullDate()}"
+}
+
 private fun LocalDate.monthDay(): String = "${monthNumber.twoDigits()}-${dayOfMonth.twoDigits()}"
 
 private fun LocalDate.fullDate(): String = "$year-${monthNumber.twoDigits()}-${dayOfMonth.twoDigits()}"

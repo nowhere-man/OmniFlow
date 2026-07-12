@@ -34,11 +34,19 @@ class SqlDelightHomeFacade(
 
     override fun observeTransactionDetails(query: TransactionDetailQuery): Flow<Result<TransactionDetailState>> =
         observeRows(query.scope, query.date).map { rows -> runCatching {
-            val items = rows.map(::toListItem)
+            val items = rows.map(::toListItem).filter { query.type == null || it.type == query.type }
             TransactionDetailState(
                 scope = query.scope,
                 date = query.date,
-                summary = summary(query.date, query.scope),
+                type = query.type,
+                summary = items.asSequence()
+                    .filterNot(TransactionListItem::isExcluded)
+                    .fold(TransactionSummary(Money.Zero, Money.Zero)) { total, item ->
+                        when (item.type) {
+                            TransactionType.EXPENSE -> total.copy(expenseTotal = total.expenseTotal + item.amount)
+                            TransactionType.INCOME -> total.copy(incomeTotal = total.incomeTotal + item.amount)
+                        }
+                    },
                 items = items,
             )
         } }

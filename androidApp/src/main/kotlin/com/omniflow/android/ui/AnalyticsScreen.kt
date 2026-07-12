@@ -89,6 +89,7 @@ internal fun AnalyticsScreen(
     onShiftRange: (Long) -> Unit,
     onCurrentRange: () -> Unit,
     onCustomRange: (DateRange) -> Unit,
+    onSummary: (TransactionType?) -> Unit,
     onRankingType: (TransactionType) -> Unit,
     onCategoryAnalysis: (TransactionType, CategoryShareGranularity) -> Unit,
     onCategoryDrillDown: (String?) -> Unit,
@@ -179,6 +180,7 @@ internal fun AnalyticsScreen(
                             dashboard.summary.incomeTotal,
                             dashboard.summary.netIncome,
                             dashboard.previousPeriod,
+                            onSummary,
                         )
                     }
                     item {
@@ -433,16 +435,23 @@ private fun LedgerScopeMenu(scope: LedgerScope, ledgers: List<com.omniflow.share
 }
 
 @Composable
-private fun SummaryRow(expense: Money, income: Money, net: Money, comparison: PeriodCompareResult) {
+private fun SummaryRow(
+    expense: Money,
+    income: Money,
+    net: Money,
+    comparison: PeriodCompareResult,
+    onSummary: (TransactionType?) -> Unit,
+) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SummaryCard("总支出", expense, comparison.expenseChange, ExpenseColor, false, Modifier.weight(1f))
-        SummaryCard("总收入", income, comparison.incomeChange, AnalyticsIncomeColor, true, Modifier.weight(1f))
+        SummaryCard("总支出", expense, comparison.expenseChange, ExpenseColor, false, { onSummary(TransactionType.EXPENSE) }, Modifier.weight(1f))
+        SummaryCard("总收入", income, comparison.incomeChange, AnalyticsIncomeColor, true, { onSummary(TransactionType.INCOME) }, Modifier.weight(1f))
         SummaryCard(
             "总结余",
             net,
             comparison.netIncomeChange,
             if (net.minor >= 0) MaterialTheme.colorScheme.primary else ExpenseColor,
             true,
+            { onSummary(null) },
             Modifier.weight(1f),
         )
     }
@@ -455,10 +464,12 @@ private fun SummaryCard(
     change: Money,
     color: Color,
     increaseIsPositive: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier,
 ) {
     Card(
-        modifier,
+        onClick = onClick,
+        modifier = modifier,
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.12f)),
     ) {

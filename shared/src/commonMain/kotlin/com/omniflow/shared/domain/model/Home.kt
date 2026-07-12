@@ -19,6 +19,7 @@ data class HomeQuery(
 data class TransactionDetailQuery(
     val scope: LedgerScope,
     val date: DateRange,
+    val type: TransactionType? = null,
 )
 
 data class TransactionListItem(
@@ -91,6 +92,7 @@ data class HomeState(
 data class TransactionDetailState(
     val scope: LedgerScope,
     val date: DateRange,
+    val type: TransactionType?,
     val summary: TransactionSummary,
     val items: List<TransactionListItem>,
 )

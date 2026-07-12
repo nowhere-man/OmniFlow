@@ -8,6 +8,7 @@ import com.omniflow.shared.domain.model.HomeQuery
 import com.omniflow.shared.domain.model.LedgerScope
 import com.omniflow.shared.domain.model.Money
 import com.omniflow.shared.domain.model.TransactionDetailQuery
+import com.omniflow.shared.domain.model.TransactionType
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.Instant
@@ -59,6 +60,28 @@ class SqlDelightHomeFacadeTest {
         assertEquals(1, state.items.size)
         assertEquals(Money(500), state.summary.expenseTotal)
         assertEquals(Money.Zero, state.summary.incomeTotal)
+    }
+
+    @Test
+    fun rangeDetailFiltersItemsAndSummaryByTransactionType() = runBlocking {
+        val database = createJvmDatabase()
+        seed(database)
+        val facade = SqlDelightHomeFacade(database)
+
+        val state = facade.observeTransactionDetails(
+            TransactionDetailQuery(
+                scope = LedgerScope.All,
+                date = DateRange(
+                    startInclusive = Instant.fromEpochMilliseconds(1_000),
+                    endExclusive = Instant.fromEpochMilliseconds(4_000),
+                ),
+                type = TransactionType.INCOME,
+            ),
+        ).first().getOrThrow()
+
+        assertEquals(listOf(TransactionType.INCOME), state.items.map { it.type })
+        assertEquals(Money.Zero, state.summary.expenseTotal)
+        assertEquals(Money(800), state.summary.incomeTotal)
     }
 
     @Test

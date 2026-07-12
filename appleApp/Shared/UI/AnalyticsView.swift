@@ -62,9 +62,9 @@ struct AnalyticsView: View {
                 } else {
                     LiquidGlassContainer(spacing: 12) {
                         HStack(spacing: 12) {
-                            SummaryCard(title: "总支出", value: store.analyticsExpenseMinor.rmb)
-                            SummaryCard(title: "总收入", value: store.analyticsIncomeMinor.rmb)
-                            SummaryCard(title: "总结余", value: (store.analyticsIncomeMinor - store.analyticsExpenseMinor).rmb)
+                            summaryButton("总支出", store.analyticsExpenseMinor, .expense)
+                            summaryButton("总收入", store.analyticsIncomeMinor, .income)
+                            summaryButton("总结余", store.analyticsIncomeMinor - store.analyticsExpenseMinor, nil)
                         }
                     }
                     Button("查看年度账单") { store.loadAnalyticsStatement(year: Calendar.current.component(.year, from: anchor)) }
@@ -183,6 +183,30 @@ struct AnalyticsView: View {
             refresh()
         }
         .sheet(item: $store.analyticsStatement) { StatementTableView(table: $0) }
+        .sheet(
+            isPresented: Binding(
+                get: { store.selectedDetailRange != nil },
+                set: { if !$0 { store.dismissDateDetail() } }
+            )
+        ) {
+            #if os(macOS)
+            DateTransactionDetailView()
+                .environmentObject(store)
+                .frame(minWidth: 420, minHeight: 520)
+            #else
+            DateTransactionDetailView()
+                .environmentObject(store)
+            #endif
+        }
+    }
+
+    private func summaryButton(_ title: String, _ amount: Int64, _ type: EntryType?) -> some View {
+        Button {
+            store.showTransactionDetails(range: range, ledgerID: store.analyticsLedgerID, type: type)
+        } label: {
+            SummaryCard(title: title, value: amount.rmb)
+        }
+        .buttonStyle(.plain)
     }
 
     private var range: DateInterval {

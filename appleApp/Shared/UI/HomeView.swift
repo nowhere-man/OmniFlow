@@ -21,7 +21,11 @@ struct HomeView: View {
                     .accessibilityLabel("搜索")
                     #endif
                 }
-                MonthlyBalanceCard(expense: store.expenseMinor, income: store.incomeMinor)
+                HStack(spacing: 10) {
+                    summaryButton("总支出", store.expenseMinor, .expense)
+                    summaryButton("总收入", store.incomeMinor, .income)
+                    summaryButton("总结余", store.incomeMinor - store.expenseMinor, nil)
+                }
                 HStack { Spacer(); CalendarFilterPicker() }
                 HomeCalendarView()
                     .padding(12)
@@ -56,7 +60,7 @@ struct HomeView: View {
         .navigationTitle("首页")
         .sheet(
             isPresented: Binding(
-                get: { store.selectedDate != nil },
+                get: { store.selectedDetailRange != nil },
                 set: { if !$0 { store.dismissDateDetail() } }
             )
         ) {
@@ -69,6 +73,20 @@ struct HomeView: View {
                 .environmentObject(store)
             #endif
         }
+    }
+
+    private func summaryButton(_ title: String, _ amount: Int64, _ type: EntryType?) -> some View {
+        Button {
+            store.showTransactionDetails(range: monthRange, ledgerID: store.selectedLedgerID, type: type)
+        } label: {
+            SummaryCard(title: title, value: amount.rmb)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var monthRange: DateInterval {
+        Calendar.current.dateInterval(of: .month, for: store.selectedMonth) ??
+            DateInterval(start: store.selectedMonth, duration: 30 * 86_400)
     }
 
     private var ledgerPicker: some View {
@@ -168,7 +186,7 @@ private struct HomeCalendarView: View {
     private func compact(_ minor: Int64) -> String { "\(minor / 100)" }
 }
 
-private struct DateTransactionDetailView: View {
+struct DateTransactionDetailView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.appThemeColor) private var themeColor
     @State private var displayMode: TransactionDisplayMode = .card
@@ -178,14 +196,18 @@ private struct DateTransactionDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(spacing: 22) {
-                        Text("支出 \(store.dateDetailExpenseMinor.wholeRmb)").foregroundStyle(Color.expense)
-                        Text("收入 \(store.dateDetailIncomeMinor.wholeRmb)").foregroundStyle(themeColor)
+                        if store.dateDetailType != .income {
+                            Text("支出 \(store.dateDetailExpenseMinor.wholeRmb)").foregroundStyle(Color.expense)
+                        }
+                        if store.dateDetailType != .expense {
+                            Text("收入 \(store.dateDetailIncomeMinor.wholeRmb)").foregroundStyle(themeColor)
+                        }
                         Spacer()
                         displayModeButton
                     }
                     .font(.subheadline.weight(.semibold))
                     if store.dateDetailTransactions.isEmpty {
-                        EmptyStateView(title: "当天暂无明细", systemImage: "calendar", detail: "这一天没有记录")
+                        EmptyStateView(title: "当前范围暂无明细", systemImage: "calendar", detail: "所选日期范围没有记录")
                     } else {
                         TransactionCollectionView(items: store.dateDetailTransactions, displayMode: displayMode) { item in
                             store.dismissDateDetail()
@@ -195,11 +217,26 @@ private struct DateTransactionDetailView: View {
                 }
                 .padding()
             }
-            .navigationTitle(store.selectedDate?.formatted(date: .abbreviated, time: .omitted) ?? "日期明细")
+            .navigationTitle(detailTitle)
             .toolbar {
                 Button("关闭", action: store.dismissDateDetail)
             }
         }
+    }
+
+    private var detailTitle: String {
+        guard let range = store.selectedDetailRange else { return "日期明细" }
+        let end = Calendar.current.date(byAdding: .day, value: -1, to: range.end) ?? range.end
+        if Calendar.current.isDate(range.start, inSameDayAs: end) {
+            return range.start.formatted(date: .abbreviated, time: .omitted)
+        }
+        return "\(format(range.start)) 至 \(format(end))"
+    }
+
+    private func format(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 
     @ViewBuilder
@@ -424,29 +461,5 @@ private struct CalendarFilterPicker: View {
         .foregroundStyle(store.calendarFilter == value ? selectedForeground : Color.secondary)
         .accessibilityLabel(label)
         .accessibilityAddTraits(store.calendarFilter == value ? .isSelected : [])
-    }
-}
-
-private struct MonthlyBalanceCard: View {
-    @Environment(\.appThemeColor) private var themeColor
-    @Environment(\.appThemeSelectionForeground) private var selectedForeground
-    let expense: Int64
-    let income: Int64
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("本月结余").font(.caption.weight(.medium))
-            Text((income - expense).rmb).font(.title.bold())
-            HStack {
-                Text("支出 \(expense.rmb)")
-                Spacer()
-                Text("收入 \(income.rmb)")
-            }
-            .font(.subheadline)
-        }
-        .foregroundStyle(selectedForeground)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .liquidGlassSurface(cornerRadius: 18, tint: themeColor)
     }
 }

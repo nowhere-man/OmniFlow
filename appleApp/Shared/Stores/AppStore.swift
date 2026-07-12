@@ -21,8 +21,9 @@ final class AppStore: ObservableObject {
     @Published var calendarFilter = "ALL"
     @Published var calendarDays: [CalendarDayUI] = []
     @Published var transactionDisplayMode: TransactionDisplayMode = .list
-    @Published var selectedDate: Date?
+    @Published var selectedDetailRange: DateInterval?
     @Published var dateDetailLedgerID: String?
+    @Published var dateDetailType: EntryType?
     @Published var dateDetailTransactions: [TransactionUI] = []
     @Published var dateDetailExpenseMinor: Int64 = 0
     @Published var dateDetailIncomeMinor: Int64 = 0
@@ -230,13 +231,15 @@ final class AppStore: ObservableObject {
     }
 
     func showDate(_ date: Date) {
-        selectedDate = date
-        dateDetailLedgerID = selectedLedgerID
-        observeDateDetails()
+        let start = Calendar.current.startOfDay(for: date)
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86_400)
+        showTransactionDetails(range: DateInterval(start: start, end: end), ledgerID: selectedLedgerID, type: nil)
     }
 
-    func setDateDetailLedger(_ id: String?) {
-        dateDetailLedgerID = id
+    func showTransactionDetails(range: DateInterval, ledgerID: String?, type: EntryType?) {
+        selectedDetailRange = range
+        dateDetailLedgerID = ledgerID
+        dateDetailType = type
         observeDateDetails()
     }
 
@@ -244,8 +247,11 @@ final class AppStore: ObservableObject {
         #if canImport(OmniFlowShared)
         dateDetailSubscription?.cancel()
         #endif
-        selectedDate = nil
+        selectedDetailRange = nil
+        dateDetailType = nil
         dateDetailTransactions = []
+        dateDetailExpenseMinor = 0
+        dateDetailIncomeMinor = 0
     }
 
     func search() {
@@ -987,14 +993,13 @@ final class AppStore: ObservableObject {
     }
 
     private func observeDateDetails() {
-        guard let date = selectedDate else { return }
-        let start = Calendar.current.startOfDay(for: date)
-        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86_400)
+        guard let range = selectedDetailRange else { return }
         dateDetailSubscription?.cancel()
         dateDetailSubscription = bridge.watchTransactionDetails(
             ledgerId: dateDetailLedgerID,
-            startMillis: Int64(start.timeIntervalSince1970 * 1000),
-            endMillis: Int64(end.timeIntervalSince1970 * 1000)
+            startMillis: Int64(range.start.timeIntervalSince1970 * 1000),
+            endMillis: Int64(range.end.timeIntervalSince1970 * 1000),
+            typeName: dateDetailType?.rawValue
         ) { [weak self] value, message in
             Task { @MainActor in
                 if let message { self?.error = message }

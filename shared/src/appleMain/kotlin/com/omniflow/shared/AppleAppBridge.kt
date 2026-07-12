@@ -134,11 +134,13 @@ class AppleAppBridge(val app: SharedApp) {
         ledgerId: String?,
         startMillis: Long,
         endMillis: Long,
+        typeName: String? = null,
         callback: (TransactionDetailState?, String?) -> Unit,
     ) = watchTransactionDetails(
         TransactionDetailQuery(
             scope = ledgerId?.let(LedgerScope::Single) ?: LedgerScope.All,
             date = DateRange(Instant.fromEpochMilliseconds(startMillis), Instant.fromEpochMilliseconds(endMillis)),
+            type = typeName?.let(TransactionType::valueOf),
         ),
         callback,
     )
