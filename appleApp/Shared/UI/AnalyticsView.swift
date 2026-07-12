@@ -21,7 +21,9 @@ struct AnalyticsView: View {
                         ForEach(store.ledgers) { ledger in Button(ledger.name) { store.selectAnalyticsLedger(ledger.id) } }
                     } label: {
                         Image(systemName: "books.vertical")
+                            .iOSLiquidGlassIconControl()
                     }
+                    .iOSPlainButtonStyle()
                     .accessibilityLabel("选择统计账本")
                     ThemeSegmentedControl(selection: $mode, options: RangeMode.allCases, title: \.label)
                 }
@@ -33,19 +35,25 @@ struct AnalyticsView: View {
                     }
                 } else {
                     HStack {
-                        Button { shift(-1) } label: { Image(systemName: "chevron.left") }
+                        Button { shift(-1) } label: {
+                            Image(systemName: "chevron.left")
+                                .iOSLiquidGlassIconControl(size: 34)
+                        }
+                        .iOSPlainButtonStyle()
                         Spacer()
                         Text(rangeLabel)
                             .font(.headline)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                         Spacer()
-                        Button { shift(1) } label: { Image(systemName: "chevron.right") }
+                        Button { shift(1) } label: {
+                            Image(systemName: "chevron.right")
+                                .iOSLiquidGlassIconControl(size: 34)
+                        }
+                        .iOSPlainButtonStyle()
                     }
                     if !range.contains(Date()) {
-                        Button(currentRangeTitle) { anchor = Date(); refresh() }
-                            .buttonStyle(.bordered)
-                            .frame(maxWidth: .infinity, alignment: .center)
+                        currentRangeButton
                     }
                 }
                 if store.analyticsExpenseMinor == 0 && store.analyticsIncomeMinor == 0 {
@@ -61,6 +69,7 @@ struct AnalyticsView: View {
                         }
                     }
                     Button("查看年度账单") { store.loadAnalyticsStatement(year: Calendar.current.component(.year, from: anchor)) }
+                        .buttonStyle(.bordered)
                     VStack(alignment: .leading, spacing: 10) {
                     ThemeSegmentedControl(selection: $store.analyticsRankingType, options: EntryType.allCases, title: \.label)
                     HStack(spacing: 10) {
@@ -122,6 +131,7 @@ struct AnalyticsView: View {
                                 store.analyticsPrimaryCategoryID = nil
                                 store.analyticsCategoryGranularity = .primary
                             }
+                            .buttonStyle(.bordered)
                         }
                         let total = max(store.analyticsCategories.map(\.amount).reduce(0, +), 1)
                         DonutChart(items: store.analyticsCategories)
@@ -206,6 +216,25 @@ struct AnalyticsView: View {
 
     private var currentRangeTitle: String {
         switch mode { case .week: return "回到本周"; case .month: return "回到本月"; case .year: return "回到今年"; case .custom: return "" }
+    }
+
+    @ViewBuilder
+    private var currentRangeButton: some View {
+        #if os(iOS)
+        Button { anchor = Date(); refresh() } label: {
+            Text(currentRangeTitle)
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 12)
+                .frame(minHeight: 34)
+                .iOSLiquidGlassControl(cornerRadius: 17)
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .center)
+        #else
+        Button(currentRangeTitle) { anchor = Date(); refresh() }
+            .buttonStyle(.bordered)
+            .frame(maxWidth: .infinity, alignment: .center)
+        #endif
     }
 
     private func compactDatePicker(_ label: String, selection: Binding<Date>) -> some View {

@@ -13,7 +13,12 @@ struct HomeView: View {
                     monthHeader
                     Spacer()
                     #if os(iOS)
-                    Button { store.destination = .search } label: { Image(systemName: "magnifyingglass") }
+                    Button { store.destination = .search } label: {
+                        Image(systemName: "magnifyingglass")
+                            .iOSLiquidGlassIconControl()
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("搜索")
                     #endif
                 }
                 MonthlyBalanceCard(expense: store.expenseMinor, income: store.incomeMinor)
@@ -24,7 +29,9 @@ struct HomeView: View {
                     Spacer()
                     Button(action: store.toggleTransactionDisplayMode) {
                         Image(systemName: store.transactionDisplayMode == .list ? "square.grid.2x2" : "list.bullet")
+                            .iOSLiquidGlassIconControl()
                     }
+                    .iOSPlainButtonStyle()
                     .accessibilityLabel("切换明细展示方式")
                 }
                 if store.loading {
@@ -69,16 +76,27 @@ struct HomeView: View {
         } label: {
             Image(systemName: "books.vertical")
                 .font(.title3.weight(.semibold))
+                .iOSLiquidGlassIconControl()
         }
+        .iOSPlainButtonStyle()
         .accessibilityLabel(store.selectedLedgerID.flatMap { id in store.ledgers.first { $0.id == id }?.name } ?? "所有账本")
     }
 
     private var monthHeader: some View {
-        HStack(spacing: 4) {
-            Button { store.shiftMonth(-1) } label: { Image(systemName: "chevron.left") }
-            Button(store.selectedMonth.formatted(.dateTime.year().month())) { showingMonthPicker.toggle() }
-                .font(.headline)
-                .buttonStyle(.plain)
+        LiquidGlassContainer(spacing: 4) {
+            HStack(spacing: 4) {
+                Button { store.shiftMonth(-1) } label: {
+                    Image(systemName: "chevron.left")
+                        .iOSLiquidGlassIconControl(size: 34)
+                }
+                .iOSPlainButtonStyle()
+                Button { showingMonthPicker.toggle() } label: {
+                    Text(store.selectedMonth.formatted(.dateTime.year().month()))
+                        .font(.headline)
+                        .frame(minWidth: 92, minHeight: 34)
+                        .iOSLiquidGlassControl(cornerRadius: 13)
+                }
+                .iOSPlainButtonStyle()
                 .popover(isPresented: $showingMonthPicker) {
                     DatePicker(
                         "月份",
@@ -89,7 +107,12 @@ struct HomeView: View {
                     .padding()
                     .platformPopoverAdaptation()
                 }
-            Button { store.shiftMonth(1) } label: { Image(systemName: "chevron.right") }
+                Button { store.shiftMonth(1) } label: {
+                    Image(systemName: "chevron.right")
+                        .iOSLiquidGlassIconControl(size: 34)
+                }
+                .iOSPlainButtonStyle()
+            }
         }
     }
 }
@@ -157,13 +180,7 @@ private struct DateTransactionDetailView: View {
                         Text("支出 \(store.dateDetailExpenseMinor.wholeRmb)").foregroundStyle(.red)
                         Text("收入 \(store.dateDetailIncomeMinor.wholeRmb)").foregroundStyle(themeColor)
                         Spacer()
-                        Button {
-                            displayMode = displayMode == .card ? .list : .card
-                        } label: {
-                            Image(systemName: displayMode == .list ? "square.grid.2x2" : "list.bullet")
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                        displayModeButton
                     }
                     .font(.subheadline.weight(.semibold))
                     if store.dateDetailTransactions.isEmpty {
@@ -182,6 +199,29 @@ private struct DateTransactionDetailView: View {
                 Button("关闭", action: store.dismissDateDetail)
             }
         }
+    }
+
+    @ViewBuilder
+    private var displayModeButton: some View {
+        #if os(iOS)
+        Button {
+            displayMode = displayMode == .card ? .list : .card
+        } label: {
+            Image(systemName: displayMode == .list ? "square.grid.2x2" : "list.bullet")
+                .iOSLiquidGlassIconControl(size: 34)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("切换明细展示方式")
+        #else
+        Button {
+            displayMode = displayMode == .card ? .list : .card
+        } label: {
+            Image(systemName: displayMode == .list ? "square.grid.2x2" : "list.bullet")
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .help("切换明细展示方式")
+        #endif
     }
 
 }

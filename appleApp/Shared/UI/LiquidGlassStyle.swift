@@ -124,6 +124,35 @@ extension View {
     }
 
     @ViewBuilder
+    func iOSLiquidGlassIconControl(size: CGFloat = 38, tint: Color? = nil) -> some View {
+        #if os(iOS)
+        frame(width: size, height: size)
+            .contentShape(Circle())
+            .liquidGlassCircle(interactive: true, tint: tint)
+        #else
+        self
+        #endif
+    }
+
+    @ViewBuilder
+    func iOSLiquidGlassControl(cornerRadius: CGFloat = 14, tint: Color? = nil) -> some View {
+        #if os(iOS)
+        liquidGlassSurface(cornerRadius: cornerRadius, interactive: true, tint: tint)
+        #else
+        self
+        #endif
+    }
+
+    @ViewBuilder
+    func iOSPlainButtonStyle() -> some View {
+        #if os(iOS)
+        buttonStyle(.plain)
+        #else
+        self
+        #endif
+    }
+
+    @ViewBuilder
     func platformPopoverAdaptation() -> some View {
         #if os(iOS)
         if #available(iOS 16.4, *) {
@@ -142,12 +171,30 @@ struct SelectablePillButtonStyle: ButtonStyle {
     @Environment(\.appThemeSelectionForeground) private var selectedForeground
     let selected: Bool
 
+    @ViewBuilder
     func makeBody(configuration: Configuration) -> some View {
+        #if os(iOS)
+        if #available(iOS 26.0, *) {
+            label(configuration)
+                .liquidGlassSurface(cornerRadius: 17, interactive: true, tint: selected ? themeColor : nil)
+        } else {
+            legacyLabel(configuration)
+        }
+        #else
+        legacyLabel(configuration)
+        #endif
+    }
+
+    private func label(_ configuration: Configuration) -> some View {
         configuration.label
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(selected ? selectedForeground : Color.primary)
             .padding(.horizontal, 12)
             .frame(minHeight: 34)
+    }
+
+    private func legacyLabel(_ configuration: Configuration) -> some View {
+        label(configuration)
             .background(
                 selected ? themeColor.opacity(configuration.isPressed ? 0.78 : 1) : Color.secondary.opacity(configuration.isPressed ? 0.16 : 0.09),
                 in: Capsule()
@@ -171,25 +218,41 @@ struct ThemeSegmentedControl<Option: Hashable>: View {
         .pickerStyle(.segmented)
         .labelsHidden()
         #else
-        HStack(spacing: 4) {
-            ForEach(options, id: \.self) { option in
-                let selected = selection == option
-                Button {
-                    withAnimation(.easeInOut(duration: 0.16)) { selection = option }
-                } label: {
-                    Text(title(option))
-                        .font(.subheadline.weight(selected ? .bold : .medium))
-                        .foregroundStyle(selected ? selectedForeground : Color.secondary)
-                        .frame(maxWidth: .infinity, minHeight: 36)
-                        .contentShape(Rectangle())
+        if #available(iOS 26.0, *) {
+            LiquidGlassContainer(spacing: 4) {
+                HStack(spacing: 4) {
+                    ForEach(options, id: \.self) { segmentButton($0, glass: true) }
                 }
-                .buttonStyle(.plain)
-                .background(selected ? themeColor : Color.clear, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-                .accessibilityAddTraits(selected ? .isSelected : [])
             }
+        } else {
+            HStack(spacing: 4) {
+                ForEach(options, id: \.self) { segmentButton($0, glass: false) }
+            }
+            .padding(3)
+            .background(Color.secondary.opacity(0.09), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
-        .padding(3)
-        .background(Color.secondary.opacity(0.09), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         #endif
+    }
+
+    @ViewBuilder
+    private func segmentButton(_ option: Option, glass: Bool) -> some View {
+        let selected = selection == option
+        let button = Button {
+            withAnimation(.easeInOut(duration: 0.16)) { selection = option }
+        } label: {
+            Text(title(option))
+                .font(.subheadline.weight(selected ? .bold : .medium))
+                .foregroundStyle(selected ? selectedForeground : Color.secondary)
+                .frame(maxWidth: .infinity, minHeight: 36)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+
+        if glass {
+            button.liquidGlassSurface(cornerRadius: 13, interactive: true, tint: selected ? themeColor : nil)
+        } else {
+            button.background(selected ? themeColor : Color.clear, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        }
     }
 }

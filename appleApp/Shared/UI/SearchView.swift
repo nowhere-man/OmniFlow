@@ -127,6 +127,7 @@ struct SearchView: View {
             store.searchSecondaryCategoryID != nil || store.searchTagID != nil
     }
 
+    @ViewBuilder
     private func filterMenu(
         title: String,
         allTitle: String,
@@ -134,7 +135,7 @@ struct SearchView: View {
         onAll: @escaping () -> Void,
         onSelected: @escaping (String) -> Void
     ) -> some View {
-        Menu {
+        let menu = Menu {
             Button(allTitle, action: onAll)
             ForEach(values.indices, id: \.self) { index in
                 Button(values[index].1) { onSelected(values[index].0) }
@@ -146,9 +147,15 @@ struct SearchView: View {
             }
             .font(.caption.weight(.medium))
             .frame(maxWidth: .infinity, minHeight: 34)
+            .iOSLiquidGlassControl(cornerRadius: 12)
         }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
+
+        #if os(iOS)
+        menu.buttonStyle(.plain)
+        #else
+        menu.buttonStyle(.bordered)
+            .controlSize(.small)
+        #endif
     }
 
     private func searchResult(_ item: TransactionUI) -> some View {
