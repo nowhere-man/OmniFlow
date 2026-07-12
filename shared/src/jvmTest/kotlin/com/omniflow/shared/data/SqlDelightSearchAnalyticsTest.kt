@@ -35,6 +35,15 @@ class SqlDelightSearchAnalyticsTest {
         assertEquals(Money(500), search.summary.expenseTotal)
         assertEquals("utensils", search.items.single().transaction.categoryIconKey)
 
+        val textSearch = SqlDelightSearchTransactionsUseCase(database)(
+            TransactionSearchQuery(
+                primaryCategoryText = "餐饮",
+                secondaryCategoryText = "餐厅",
+                noteText = "晚餐",
+            ),
+        ).getOrThrow()
+        assertEquals(listOf("expense-2"), textSearch.items.map { it.transaction.id })
+
         val dashboard = SqlDelightAnalyticsFacade(database).observeDashboard(
             AnalyticsQuery(
                 scope = LedgerScope.All,

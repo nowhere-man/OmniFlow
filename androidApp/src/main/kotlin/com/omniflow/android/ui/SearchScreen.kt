@@ -37,16 +37,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.omniflow.shared.domain.model.Account
-import com.omniflow.shared.domain.model.Category
+import com.omniflow.shared.domain.model.DateRange
 import com.omniflow.shared.domain.model.Ledger
 import com.omniflow.shared.domain.model.LedgerScope
-import com.omniflow.shared.domain.model.Tag
+import com.omniflow.shared.domain.model.Money
 import com.omniflow.shared.domain.model.TransactionType
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.toLocalDateTime
 
 @Composable
 internal fun SearchScreen(
@@ -54,19 +60,17 @@ internal fun SearchScreen(
     onKeyword: (String) -> Unit,
     onScope: (LedgerScope) -> Unit,
     onType: (TransactionType?) -> Unit,
-    onPrimaryCategory: (String?) -> Unit,
-    onSecondaryCategory: (String?) -> Unit,
-    onTag: (String?) -> Unit,
+    onPrimaryCategoryText: (String) -> Unit,
+    onSecondaryCategoryText: (String) -> Unit,
+    onTagText: (String) -> Unit,
+    onNoteText: (String) -> Unit,
     onAccount: (String?) -> Unit,
+    onAmount: (Money?, Money?) -> Unit,
+    onDateRange: (DateRange?) -> Unit,
     onClear: () -> Unit,
     onEditTransaction: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val primaryCategories = state.categories.filter { it.parentId == null }
-    val secondaryCategories = state.categories.filter { category ->
-        category.parentId != null && (state.query.primaryCategoryId == null || category.parentId == state.query.primaryCategoryId)
-    }
-
     LazyColumn(
         modifier = modifier.fillMaxSize().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -122,35 +126,12 @@ internal fun SearchScreen(
                             modifier = Modifier.weight(1f),
                         )
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        ValueMenu(
-                            label = primaryCategories.firstOrNull { it.id == state.query.primaryCategoryId }?.name ?: "所有一级分类",
-                            allLabel = "所有一级分类",
-                            values = primaryCategories,
-                            valueLabel = Category::name,
-                            onAll = { onPrimaryCategory(null) },
-                            onSelected = { onPrimaryCategory(it.id) },
-                            modifier = Modifier.weight(1f),
-                        )
-                        ValueMenu(
-                            label = secondaryCategories.firstOrNull { it.id == state.query.secondaryCategoryId }?.name ?: "所有二级分类",
-                            allLabel = "所有二级分类",
-                            values = secondaryCategories,
-                            valueLabel = Category::name,
-                            onAll = { onSecondaryCategory(null) },
-                            onSelected = { onSecondaryCategory(it.id) },
-                            modifier = Modifier.weight(1f),
-                        )
-                        ValueMenu(
-                            label = state.tags.firstOrNull { it.id == state.query.tagId }?.name ?: "所有标签",
-                            allLabel = "所有标签",
-                            values = state.tags,
-                            valueLabel = Tag::name,
-                            onAll = { onTag(null) },
-                            onSelected = { onTag(it.id) },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
+                    SearchTextField("一级分类", state.query.primaryCategoryText, onPrimaryCategoryText)
+                    SearchTextField("二级分类", state.query.secondaryCategoryText, onSecondaryCategoryText)
+                    SearchTextField("标签", state.query.tagText, onTagText)
+                    SearchTextField("备注", state.query.noteText, onNoteText)
+                    AmountFilterRow(state.query.amount.minimum, state.query.amount.maximum, onAmount)
+                    DateFilterRow(state.query.dateRange, onDateRange)
                 }
             }
         }
@@ -235,6 +216,89 @@ internal fun SearchScreen(
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
+}
+
+@Composable
+private fun SearchTextField(label: String, value: String, onValue: (String) -> Unit) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValue,
+        label = { Text(label) },
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        singleLine = true,
+    )
+}
+
+@Composable
+private fun AmountFilterRow(minimum: Money?, maximum: Money?, onAmount: (Money?, Money?) -> Unit) {
+    var minimumText by remember(minimum?.minor) { mutableStateOf(minimum?.inputText().orEmpty()) }
+    var maximumText by remember(maximum?.minor) { mutableStateOf(maximum?.inputText().orEmpty()) }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = minimumText,
+            onValueChange = { minimumText = it; onAmount(it.toMoneyOrNull(), maximumText.toMoneyOrNull()) },
+            label = { Text("最低金额") },
+            modifier = Modifier.weight(1f),
+            singleLine = true,
+        )
+        OutlinedTextField(
+            value = maximumText,
+            onValueChange = { maximumText = it; onAmount(minimumText.toMoneyOrNull(), it.toMoneyOrNull()) },
+            label = { Text("最高金额") },
+            modifier = Modifier.weight(1f),
+            singleLine = true,
+        )
+    }
+}
+
+@Composable
+private fun DateFilterRow(range: DateRange?, onRange: (DateRange?) -> Unit) {
+    val context = LocalContext.current
+    val initialStart = range?.startInclusive?.toLocalDateTime(ChinaTimeZone)?.date
+    val initialEnd = range?.endExclusive?.let { Instant.fromEpochMilliseconds(it.toEpochMilliseconds() - 1) }
+        ?.toLocalDateTime(ChinaTimeZone)?.date
+    var start by remember(range) { mutableStateOf(initialStart) }
+    var end by remember(range) { mutableStateOf(initialEnd) }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        OutlinedButton(
+            onClick = { showSearchDatePicker(context, start ?: Clock.System.now().toLocalDateTime(ChinaTimeZone).date) { selected -> start = selected; onRange(dateRangeOrNull(start, end)) } },
+            modifier = Modifier.weight(1f),
+        ) { Text(start?.toString() ?: "开始日期", maxLines = 1) }
+        OutlinedButton(
+            onClick = { showSearchDatePicker(context, end ?: start ?: Clock.System.now().toLocalDateTime(ChinaTimeZone).date) { selected -> end = selected; onRange(dateRangeOrNull(start, end)) } },
+            modifier = Modifier.weight(1f),
+        ) { Text(end?.toString() ?: "结束日期", maxLines = 1) }
+        if (range != null || start != null || end != null) TextButton(onClick = { start = null; end = null; onRange(null) }) { Text("清除") }
+    }
+}
+
+private fun showSearchDatePicker(context: android.content.Context, date: LocalDate, onDate: (LocalDate) -> Unit) {
+    android.app.DatePickerDialog(
+        context,
+        { _, year, month, day -> onDate(LocalDate(year, month + 1, day)) },
+        date.year,
+        date.monthNumber - 1,
+        date.dayOfMonth,
+    ).show()
+}
+
+private fun dateRangeOrNull(first: LocalDate?, second: LocalDate?): DateRange? {
+    if (first == null || second == null) return null
+    val start = minOf(first, second)
+    val end = maxOf(first, second)
+    val next = java.time.LocalDate.of(end.year, end.monthNumber, end.dayOfMonth).plusDays(1)
+    return DateRange(
+        start.atStartOfDayIn(ChinaTimeZone),
+        LocalDate(next.year, next.monthValue, next.dayOfMonth).atStartOfDayIn(ChinaTimeZone),
+    )
+}
+
+private fun Money.inputText(): String = "${minor / 100}.${(minor % 100).toString().padStart(2, '0')}"
+
+private fun String.toMoneyOrNull(): Money? {
+    val value = trim().toBigDecimalOrNull() ?: return null
+    return Money(value.movePointRight(2).toLong())
 }
 
 @Composable

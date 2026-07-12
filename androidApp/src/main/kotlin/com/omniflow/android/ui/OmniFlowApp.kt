@@ -286,10 +286,13 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
                     onKeyword = viewModel::setSearchKeyword,
                     onScope = viewModel::setSearchScope,
                     onType = viewModel::setSearchType,
-                    onPrimaryCategory = viewModel::setSearchPrimaryCategory,
-                    onSecondaryCategory = viewModel::setSearchSecondaryCategory,
-                    onTag = viewModel::setSearchTag,
+                    onPrimaryCategoryText = viewModel::setSearchPrimaryCategoryText,
+                    onSecondaryCategoryText = viewModel::setSearchSecondaryCategoryText,
+                    onTagText = viewModel::setSearchTagText,
+                    onNoteText = viewModel::setSearchNoteText,
                     onAccount = viewModel::setSearchAccount,
+                    onAmount = viewModel::setSearchAmount,
+                    onDateRange = viewModel::setSearchDateRange,
                     onClear = viewModel::clearSearch,
                     onEditTransaction = { transactionId ->
                         viewModel.showTransactionRecordDetail(transactionId)

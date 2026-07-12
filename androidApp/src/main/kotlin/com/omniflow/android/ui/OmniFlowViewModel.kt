@@ -470,6 +470,17 @@ class OmniFlowViewModel(
         observeSearchFilters(scope)
     }
     fun setSearchType(type: TransactionType?) = updateSearch(_searchUiState.value.query.copy(type = type))
+    fun setSearchPrimaryCategoryText(value: String) = updateSearch(_searchUiState.value.query.copy(primaryCategoryText = value))
+    fun setSearchSecondaryCategoryText(value: String) = updateSearch(_searchUiState.value.query.copy(secondaryCategoryText = value))
+    fun setSearchTagText(value: String) = updateSearch(_searchUiState.value.query.copy(tagText = value))
+    fun setSearchNoteText(value: String) = updateSearch(_searchUiState.value.query.copy(noteText = value))
+    fun setSearchAmount(minimum: Money?, maximum: Money?) {
+        if (minimum != null && maximum != null && minimum > maximum) return
+        updateSearch(
+            _searchUiState.value.query.copy(amount = com.omniflow.shared.domain.model.AmountFilter(minimum = minimum, maximum = maximum)),
+        )
+    }
+    fun setSearchDateRange(range: DateRange?) = updateSearch(_searchUiState.value.query.copy(dateRange = range))
     fun setSearchPrimaryCategory(categoryId: String?) = updateSearch(
         _searchUiState.value.query.copy(primaryCategoryId = categoryId, secondaryCategoryId = null),
     )

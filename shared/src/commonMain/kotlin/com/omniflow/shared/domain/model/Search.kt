@@ -18,6 +18,10 @@ data class AmountFilter(
 data class TransactionSearchQuery(
     val scope: LedgerScope = LedgerScope.All,
     val keyword: String = "",
+    val primaryCategoryText: String = "",
+    val secondaryCategoryText: String = "",
+    val tagText: String = "",
+    val noteText: String = "",
     val type: TransactionType? = null,
     val primaryCategoryId: CategoryId? = null,
     val secondaryCategoryId: CategoryId? = null,
@@ -27,7 +31,9 @@ data class TransactionSearchQuery(
     val dateRange: DateRange? = null,
 ) {
     val hasFilters: Boolean
-        get() = keyword.isNotBlank() || type != null || primaryCategoryId != null ||
+        get() = keyword.isNotBlank() || primaryCategoryText.isNotBlank() ||
+            secondaryCategoryText.isNotBlank() || tagText.isNotBlank() || noteText.isNotBlank() ||
+            type != null || primaryCategoryId != null ||
             secondaryCategoryId != null || tagId != null || accountId != null ||
             amount.exact != null || amount.minimum != null || amount.maximum != null || dateRange != null
 }

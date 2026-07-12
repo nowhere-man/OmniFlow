@@ -54,6 +54,13 @@ class SqlDelightSearchTransactionsUseCase(
         if (query.tagId != null && item.tags.none { it.id == query.tagId }) return false
         if (query.accountId != null && transaction.accountId != query.accountId) return false
         if (!matchesAmount(query, transaction.amount)) return false
+        if (!contains(transaction.primaryCategoryName, query.primaryCategoryText)) return false
+        if (query.secondaryCategoryText.isNotBlank() && (
+                transaction.categoryId == item.primaryCategoryId ||
+                    !contains(transaction.categoryName, query.secondaryCategoryText)
+            )) return false
+        if (query.tagText.isNotBlank() && item.tags.none { contains(it.name, query.tagText) }) return false
+        if (!contains(transaction.note.orEmpty(), query.noteText)) return false
         return query.keyword.trim().takeIf(String::isNotEmpty)?.let { keyword ->
             val normalized = keyword.lowercase()
             listOf(
@@ -65,6 +72,9 @@ class SqlDelightSearchTransactionsUseCase(
             ).any { it.lowercase().contains(normalized) }
         } ?: true
     }
+
+    private fun contains(value: String, query: String): Boolean =
+        query.trim().takeIf(String::isNotEmpty)?.let { value.contains(it, ignoreCase = true) } ?: true
 
     private fun matchesAmount(query: TransactionSearchQuery, amount: Money): Boolean = when {
         query.amount.exact != null -> amount == query.amount.exact

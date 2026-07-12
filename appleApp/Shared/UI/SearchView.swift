@@ -8,7 +8,6 @@ struct SearchView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 10) {
-                #if os(iOS)
                 HStack {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                     TextField("关键词、分类、账户或标签", text: $store.searchText)
@@ -23,7 +22,6 @@ struct SearchView: View {
                 .padding(.horizontal, 14)
                 .frame(minHeight: 44)
                 .liquidGlassSurface(cornerRadius: 18, interactive: true)
-                #endif
 
                 VStack(spacing: 8) {
                     HStack {
@@ -52,28 +50,23 @@ struct SearchView: View {
                             onSelected: { setAccount($0) }
                         )
                     }
-                    HStack(spacing: 6) {
-                        filterMenu(
-                            title: selectedCategoryName(store.searchPrimaryCategoryID) ?? "所有一级分类",
-                            allTitle: "所有一级分类",
-                            values: primaryCategories.map { ($0.id, $0.name) },
-                            onAll: { setPrimary(nil) },
-                            onSelected: { setPrimary($0) }
-                        )
-                        filterMenu(
-                            title: selectedCategoryName(store.searchSecondaryCategoryID) ?? "所有二级分类",
-                            allTitle: "所有二级分类",
-                            values: secondaryCategories.map { ($0.id, $0.name) },
-                            onAll: { setSecondary(nil) },
-                            onSelected: { setSecondary($0) }
-                        )
-                        filterMenu(
-                            title: store.searchTagID.flatMap { id in store.searchTags.first { $0.id == id }?.name } ?? "所有标签",
-                            allTitle: "所有标签",
-                            values: store.searchTags.map { ($0.id, $0.name) },
-                            onAll: { setTag(nil) },
-                            onSelected: { setTag($0) }
-                        )
+                    filterTextField("一级分类", text: $store.searchPrimaryCategoryText)
+                    filterTextField("二级分类", text: $store.searchSecondaryCategoryText)
+                    filterTextField("标签", text: $store.searchTagText)
+                    filterTextField("备注", text: $store.searchNoteText)
+                    HStack(spacing: 8) {
+                        filterTextField("最低金额", text: $store.searchMinimumAmount)
+                        filterTextField("最高金额", text: $store.searchMaximumAmount)
+                    }
+                    HStack(spacing: 8) {
+                        Toggle("日期", isOn: Binding(
+                            get: { store.searchDateEnabled },
+                            set: { store.searchDateEnabled = $0; search() }
+                        ))
+                        if store.searchDateEnabled {
+                            DatePicker("开始", selection: $store.searchStartDate, displayedComponents: .date).labelsHidden()
+                            DatePicker("结束", selection: $store.searchEndDate, displayedComponents: .date).labelsHidden()
+                        }
                     }
                 }
                 .padding(12)
@@ -108,23 +101,25 @@ struct SearchView: View {
         .onAppear {
             store.prepareSearch()
         }
-    }
-
-    private var primaryCategories: [CategoryUI] {
-        store.searchCategories.filter { $0.parentID == nil }
-    }
-
-    private var secondaryCategories: [CategoryUI] {
-        store.searchCategories.filter { category in
-            guard let parentID = category.parentID else { return false }
-            return store.searchPrimaryCategoryID == nil || parentID == store.searchPrimaryCategoryID
-        }
+        .onChange(of: store.searchStartDate) { _ in if store.searchDateEnabled { search() } }
+        .onChange(of: store.searchEndDate) { _ in if store.searchDateEnabled { search() } }
     }
 
     private var hasFilters: Bool {
         !store.searchText.isEmpty || store.searchLedgerID != nil || store.searchType != nil ||
-            store.searchAccountID != nil || store.searchPrimaryCategoryID != nil ||
-            store.searchSecondaryCategoryID != nil || store.searchTagID != nil
+            store.searchAccountID != nil || !store.searchPrimaryCategoryText.isEmpty ||
+            !store.searchSecondaryCategoryText.isEmpty || !store.searchTagText.isEmpty ||
+            !store.searchNoteText.isEmpty || !store.searchMinimumAmount.isEmpty ||
+            !store.searchMaximumAmount.isEmpty || store.searchDateEnabled
+    }
+
+    private func filterTextField(_ title: String, text: Binding<String>) -> some View {
+        TextField(title, text: text)
+            .textFieldStyle(.plain)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, minHeight: 38)
+            .iOSLiquidGlassControl(cornerRadius: 12)
+            .onSubmit(search)
     }
 
     @ViewBuilder
@@ -188,19 +183,18 @@ struct SearchView: View {
         .liquidGlassSurface(cornerRadius: 18, interactive: true)
     }
 
-    private func selectedCategoryName(_ id: String?) -> String? {
-        id.flatMap { selected in store.searchCategories.first { $0.id == selected }?.name }
-    }
-
     private func search() { store.search() }
     private func setType(_ value: EntryType?) { store.searchType = value; search() }
     private func setAccount(_ value: String?) { store.searchAccountID = value; search() }
-    private func setPrimary(_ value: String?) { store.searchPrimaryCategoryID = value; store.searchSecondaryCategoryID = nil; search() }
-    private func setSecondary(_ value: String?) { store.searchSecondaryCategoryID = value; search() }
-    private func setTag(_ value: String?) { store.searchTagID = value; search() }
-
     private func clear() {
         store.searchText = ""
+        store.searchPrimaryCategoryText = ""
+        store.searchSecondaryCategoryText = ""
+        store.searchTagText = ""
+        store.searchNoteText = ""
+        store.searchMinimumAmount = ""
+        store.searchMaximumAmount = ""
+        store.searchDateEnabled = false
         store.searchType = nil
         store.searchAccountID = nil
         store.searchPrimaryCategoryID = nil

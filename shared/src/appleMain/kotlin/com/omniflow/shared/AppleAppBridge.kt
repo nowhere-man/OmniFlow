@@ -268,6 +268,10 @@ class AppleAppBridge(val app: SharedApp) {
 
     fun search(
         keyword: String,
+        primaryCategoryText: String,
+        secondaryCategoryText: String,
+        tagText: String,
+        noteText: String,
         ledgerId: String?,
         typeName: String?,
         accountId: String?,
@@ -284,6 +288,10 @@ class AppleAppBridge(val app: SharedApp) {
         TransactionSearchQuery(
             scope = ledgerId?.let(LedgerScope::Single) ?: LedgerScope.All,
             keyword = keyword,
+            primaryCategoryText = primaryCategoryText,
+            secondaryCategoryText = secondaryCategoryText,
+            tagText = tagText,
+            noteText = noteText,
             type = typeName?.let(TransactionType::valueOf),
             accountId = accountId,
             primaryCategoryId = primaryCategoryId,

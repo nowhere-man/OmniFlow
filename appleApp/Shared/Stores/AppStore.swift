@@ -32,6 +32,15 @@ final class AppStore: ObservableObject {
     @Published var loading = true
     @Published var error: String?
     @Published var searchText = ""
+    @Published var searchPrimaryCategoryText = ""
+    @Published var searchSecondaryCategoryText = ""
+    @Published var searchTagText = ""
+    @Published var searchNoteText = ""
+    @Published var searchMinimumAmount = ""
+    @Published var searchMaximumAmount = ""
+    @Published var searchDateEnabled = false
+    @Published var searchStartDate = Date()
+    @Published var searchEndDate = Date()
     @Published var searchResults: [TransactionUI] = []
     @Published var searchExpenseMinor: Int64 = 0
     @Published var searchIncomeMinor: Int64 = 0
@@ -265,8 +274,18 @@ final class AppStore: ObservableObject {
 
     func search() {
         #if canImport(OmniFlowShared)
+        let minimum = Self.minorUnits(searchMinimumAmount)
+        let maximum = Self.minorUnits(searchMaximumAmount)
+        if let minimum, let maximum, minimum > maximum {
+            error = "最低金额不能大于最高金额"
+            return
+        }
         bridge.search(
             keyword: searchText,
+            primaryCategoryText: searchPrimaryCategoryText,
+            secondaryCategoryText: searchSecondaryCategoryText,
+            tagText: searchTagText,
+            noteText: searchNoteText,
             ledgerId: searchLedgerID,
             typeName: searchType?.rawValue,
             accountId: searchAccountID,
@@ -274,10 +293,10 @@ final class AppStore: ObservableObject {
             secondaryCategoryId: searchSecondaryCategoryID,
             tagId: searchTagID,
             exactMinor: nil,
-            minimumMinor: nil,
-            maximumMinor: nil,
-            startMillis: nil,
-            endMillis: nil
+            minimumMinor: minimum,
+            maximumMinor: maximum,
+            startMillis: searchDateEnabled ? Int64(Calendar.current.startOfDay(for: min(searchStartDate, searchEndDate)).timeIntervalSince1970 * 1000) : nil,
+            endMillis: searchDateEnabled ? Int64((Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: max(searchStartDate, searchEndDate))) ?? max(searchStartDate, searchEndDate)).timeIntervalSince1970 * 1000) : nil
         ) { [weak self] result, message in
             Task { @MainActor in
                 if let message { self?.error = message }
@@ -289,6 +308,12 @@ final class AppStore: ObservableObject {
         #else
         searchResults = transactions.filter { $0.note.localizedCaseInsensitiveContains(searchText) }
         #endif
+    }
+
+    private static func minorUnits(_ text: String) -> Int64? {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let decimal = Decimal(string: text) else { return nil }
+        return NSDecimalNumber(decimal: decimal * 100).int64Value
     }
 
     func setSearchLedger(_ id: String?) {
