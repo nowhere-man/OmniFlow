@@ -104,6 +104,7 @@ struct TransactionEditorView: View {
                     DatePicker("日期", selection: $date, displayedComponents: .date)
                         .datePickerStyle(.graphical)
                         .padding()
+                        .platformPopoverAdaptation()
                 }
                 Spacer()
                 Toggle("不计入统计", isOn: $excluded)

@@ -122,6 +122,19 @@ extension View {
         self
         #endif
     }
+
+    @ViewBuilder
+    func platformPopoverAdaptation() -> some View {
+        #if os(iOS)
+        if #available(iOS 16.4, *) {
+            presentationCompactAdaptation(.popover)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
+    }
 }
 
 struct SelectablePillButtonStyle: ButtonStyle {

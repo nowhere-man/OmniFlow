@@ -87,6 +87,7 @@ struct HomeView: View {
                     )
                     .datePickerStyle(.graphical)
                     .padding()
+                    .platformPopoverAdaptation()
                 }
             Button { store.shiftMonth(1) } label: { Image(systemName: "chevron.right") }
         }
