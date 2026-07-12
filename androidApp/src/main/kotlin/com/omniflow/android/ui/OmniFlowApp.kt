@@ -523,7 +523,17 @@ private fun HomeScreen(
                         onAction = { onAdd(null, (home.scope as? LedgerScope.Single)?.ledgerId) },
                     )
                 } else {
-                    TransactionGroups(home.groups, state.displayMode, onEdit)
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                    ) {
+                        TransactionGroups(
+                            home.groups,
+                            state.displayMode,
+                            onEdit,
+                            modifier = Modifier.padding(12.dp),
+                        )
+                    }
                 }
                 Spacer(Modifier.height(12.dp))
             }
@@ -790,7 +800,12 @@ private fun CalendarCell(
 }
 
 @Composable
-private fun TransactionGroups(groups: List<DayTransactionGroup>, displayMode: TransactionDetailDisplayMode, onEdit: (String) -> Unit) {
+private fun TransactionGroups(
+    groups: List<DayTransactionGroup>,
+    displayMode: TransactionDetailDisplayMode,
+    onEdit: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     if (groups.isEmpty()) {
         Text(
             "暂无账单",
@@ -800,7 +815,7 @@ private fun TransactionGroups(groups: List<DayTransactionGroup>, displayMode: Tr
         )
         return
     }
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         groups.forEach { group ->
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -822,16 +837,21 @@ private fun TransactionGroups(groups: List<DayTransactionGroup>, displayMode: Tr
 }
 
 @Composable
-private fun TransactionItems(items: List<TransactionListItem>, displayMode: TransactionDetailDisplayMode, onEdit: (String) -> Unit) {
+private fun TransactionItems(
+    items: List<TransactionListItem>,
+    displayMode: TransactionDetailDisplayMode,
+    onEdit: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     when (displayMode) {
-        TransactionDetailDisplayMode.LIST -> Column {
+        TransactionDetailDisplayMode.LIST -> Column(modifier) {
             items.forEachIndexed { index, item ->
                 TransactionListRow(item, onEdit)
                 if (index != items.lastIndex) HorizontalDivider()
             }
         }
 
-        TransactionDetailDisplayMode.CARD -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        TransactionDetailDisplayMode.CARD -> Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items.chunked(2).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { item -> TransactionCard(item, Modifier.weight(1f), onEdit) }
@@ -866,7 +886,7 @@ private fun TransactionCard(item: TransactionListItem, modifier: Modifier = Modi
     Card(
         modifier = modifier.clickable { onEdit(item.id) },
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -940,7 +960,12 @@ private fun DateDetailSheet(
                     if (state.type != TransactionType.INCOME) SummaryAmount("支出", state.summary.expenseTotal, ExpenseColor)
                     if (state.type != TransactionType.EXPENSE) SummaryAmount("收入", state.summary.incomeTotal, IncomeColor)
                 }
-                TransactionItems(state.items, displayMode, onEdit)
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                ) {
+                    TransactionItems(state.items, displayMode, onEdit, Modifier.padding(12.dp))
+                }
                 if (state.items.isEmpty()) Text("当前范围暂无交易")
                 Spacer(Modifier.height(20.dp))
             }

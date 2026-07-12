@@ -52,6 +52,7 @@ struct HomeView: View {
                     }
                 } else {
                     TransactionGroupsView(items: store.transactions, displayMode: store.transactionDisplayMode) { store.showTransactionDetail($0) }
+                        .transactionCollectionContainer()
                 }
                 if let error = store.error { Text(error).foregroundStyle(.red) }
             }
@@ -213,6 +214,7 @@ struct DateTransactionDetailView: View {
                             store.dismissDateDetail()
                             DispatchQueue.main.async { store.showTransactionDetail(item) }
                         }
+                        .transactionCollectionContainer()
                     }
                 }
                 .padding()
@@ -433,6 +435,13 @@ struct SummaryCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .liquidGlassSurface(cornerRadius: 16)
+    }
+}
+
+private extension View {
+    func transactionCollectionContainer() -> some View {
+        padding(12)
+            .background(Color.secondary.opacity(0.07), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
