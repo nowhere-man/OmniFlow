@@ -31,6 +31,8 @@ final class AppStore: ObservableObject {
     @Published var incomeMinor: Int64 = 0
     @Published var loading = true
     @Published var error: String?
+    @Published var managementError: String?
+    @Published var dataManagementError: String?
     @Published var searchText = ""
     @Published var searchPrimaryCategoryText = ""
     @Published var searchSecondaryCategoryText = ""
@@ -59,6 +61,8 @@ final class AppStore: ObservableObject {
     @Published var importProgress: Double = 0
     @Published var importReady = false
     @Published var selectedImportItemIDs: Set<String> = []
+    @Published var importError: String?
+    @Published var importMessage: String?
     @Published var appLockEnabled = false
     @Published var appearanceMode = "SYSTEM"
     @Published var themeColor = "LAVENDER"
@@ -583,7 +587,7 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func saveLedger(id: String?, name: String, coverKey: String?) { perform { done in
+    func saveLedger(id: String?, name: String, coverKey: String?) { performManagement { done in
         #if canImport(OmniFlowShared)
         bridge.saveLedger(id: id, name: name, coverKey: coverKey, callback: done)
         #else
@@ -591,7 +595,7 @@ final class AppStore: ObservableObject {
         #endif
     } }
 
-    func deleteLedger(_ id: String) { perform { done in
+    func deleteLedger(_ id: String) { performManagement { done in
         #if canImport(OmniFlowShared)
         bridge.deleteLedger(id: id, callback: done)
         #else
@@ -599,7 +603,7 @@ final class AppStore: ObservableObject {
         #endif
     } }
 
-    func setDefaultLedger(_ id: String?) { perform { done in
+    func setDefaultLedger(_ id: String?) { performManagement { done in
         #if canImport(OmniFlowShared)
         bridge.setDefaultLedger(id: id, callback: done)
         #else
@@ -616,7 +620,7 @@ final class AppStore: ObservableObject {
         cardNumber: String?,
         note: String?,
         included: Bool
-    ) { perform { done in
+    ) { performManagement { done in
         #if canImport(OmniFlowShared)
         bridge.saveAccount(
             id: id,
@@ -634,7 +638,7 @@ final class AppStore: ObservableObject {
         #endif
     } }
 
-    func deleteAccount(_ id: String) { perform { done in
+    func deleteAccount(_ id: String) { performManagement { done in
         #if canImport(OmniFlowShared)
         bridge.deleteAccount(id: id, callback: done)
         #else
@@ -643,8 +647,8 @@ final class AppStore: ObservableObject {
     } }
 
     func saveCategory(id: String?, name: String, type: EntryType, parentID: String? = nil, iconKey: String? = nil) {
-        guard let ledgerID = resourceLedgerID else { error = "请先选择账本"; return }
-        perform { done in
+        guard let ledgerID = resourceLedgerID else { managementError = "请先选择账本"; return }
+        performManagement { done in
             #if canImport(OmniFlowShared)
             bridge.saveCategory(id: id, ledgerId: ledgerID, parentId: parentID, name: name, iconKey: parentID == nil ? (iconKey ?? "category") : nil, typeName: type.rawValue, callback: done)
             #else
@@ -653,7 +657,7 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func deleteCategory(_ id: String) { perform { done in
+    func deleteCategory(_ id: String) { performManagement { done in
         #if canImport(OmniFlowShared)
         bridge.deleteCategory(id: id, callback: done)
         #else
@@ -662,8 +666,8 @@ final class AppStore: ObservableObject {
     } }
 
     func reorderPrimaryCategories(type: EntryType, orderedIDs: [String]) {
-        guard let ledgerID = resourceLedgerID else { error = "请先选择账本"; return }
-        perform { done in
+        guard let ledgerID = resourceLedgerID else { managementError = "请先选择账本"; return }
+        performManagement { done in
             #if canImport(OmniFlowShared)
             bridge.reorderPrimaryCategories(ledgerId: ledgerID, typeName: type.rawValue, orderedIds: orderedIDs, callback: done)
             #else
@@ -673,8 +677,8 @@ final class AppStore: ObservableObject {
     }
 
     func saveTag(id: String?, name: String) {
-        guard let ledgerID = resourceLedgerID else { error = "请先选择账本"; return }
-        perform { done in
+        guard let ledgerID = resourceLedgerID else { managementError = "请先选择账本"; return }
+        performManagement { done in
             #if canImport(OmniFlowShared)
             bridge.saveTag(id: id, ledgerId: ledgerID, name: name, callback: done)
             #else
@@ -683,7 +687,7 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func deleteTag(_ id: String) { perform { done in
+    func deleteTag(_ id: String) { performManagement { done in
         #if canImport(OmniFlowShared)
         bridge.deleteTag(id: id, callback: done)
         #else
@@ -700,8 +704,8 @@ final class AppStore: ObservableObject {
         actionValue: String,
         priority: Int
     ) {
-        guard let ledgerID = resourceLedgerID else { error = "请先选择账本"; return }
-        perform { done in
+        guard let ledgerID = resourceLedgerID else { managementError = "请先选择账本"; return }
+        performManagement { done in
             #if canImport(OmniFlowShared)
             bridge.saveRule(id: id, ledgerId: ledgerID, name: name, conditionTypeName: conditionType, conditionValue: conditionValue, actionTypeName: actionType, actionValue: actionValue, priority: Int32(priority), callback: done)
             #else
@@ -710,7 +714,7 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func deleteRule(_ id: String) { perform { done in
+    func deleteRule(_ id: String) { performManagement { done in
         #if canImport(OmniFlowShared)
         bridge.deleteRule(id: id, callback: done)
         #else
@@ -719,14 +723,14 @@ final class AppStore: ObservableObject {
     } }
 
     func moveRule(_ id: String, offset: Int) {
-        guard let ledgerID = resourceLedgerID else { error = "请先选择账本"; return }
+        guard let ledgerID = resourceLedgerID else { managementError = "请先选择账本"; return }
         var ordered = rules.sorted { $0.priority < $1.priority }
         guard let from = ordered.firstIndex(where: { $0.id == id }) else { return }
         let to = from + offset
         guard ordered.indices.contains(to) else { return }
         let moved = ordered.remove(at: from)
         ordered.insert(moved, at: to)
-        perform { done in
+        performManagement { done in
             #if canImport(OmniFlowShared)
             bridge.reorderRules(ledgerId: ledgerID, orderedIds: ordered.map(\.id), callback: done)
             #else
@@ -746,7 +750,7 @@ final class AppStore: ObservableObject {
         dayOfWeek: Int?,
         month: Int?,
         paused: Bool
-    ) { perform { done in
+    ) { performManagement { done in
         #if canImport(OmniFlowShared)
         bridge.saveReminder(
             id: id,
@@ -771,7 +775,7 @@ final class AppStore: ObservableObject {
         #endif
     } }
 
-    func deleteReminder(_ id: String) { perform { done in
+    func deleteReminder(_ id: String) { performManagement { done in
         #if canImport(OmniFlowShared)
         bridge.deleteReminder(id: id, callback: done)
         #else
@@ -779,7 +783,7 @@ final class AppStore: ObservableObject {
         #endif
     } }
 
-    func setReminderPaused(_ id: String, paused: Bool) { perform { done in
+    func setReminderPaused(_ id: String, paused: Bool) { performManagement { done in
         #if canImport(OmniFlowShared)
         bridge.setReminderPaused(id: id, paused: paused, callback: done)
         #else
@@ -787,7 +791,7 @@ final class AppStore: ObservableObject {
         #endif
     } }
 
-    func syncNow(target: String = "ICLOUD", retention: Int = 10) { perform { done in
+    func syncNow(target: String = "ICLOUD", retention: Int = 10) { performDataManagement { done in
         #if canImport(OmniFlowShared)
         bridge.configureSync(targetName: target, retention: Int32(retention)) { message in
             if let message { done(message) } else { self.bridge.syncNow(callback: done) }
@@ -798,10 +802,11 @@ final class AppStore: ObservableObject {
     } }
 
     func loadBackups() {
+        dataManagementError = nil
         #if canImport(OmniFlowShared)
         bridge.listBackups { [weak self] values, message in
             Task { @MainActor in
-                if let message { self?.error = message }
+                self?.dataManagementError = message
                 self?.backupObjects = values ?? []
                 self?.backups = values?.map { BackupUI(id: $0.backupId, createdAt: String(describing: $0.createdAt)) } ?? []
             }
@@ -812,7 +817,7 @@ final class AppStore: ObservableObject {
     func restoreBackup(id: String) {
         #if canImport(OmniFlowShared)
         guard let backup = backupObjects.first(where: { $0.backupId == id }) else { return }
-        perform { done in bridge.restoreBackup(meta: backup, callback: done) }
+        performDataManagement { done in bridge.restoreBackup(meta: backup, callback: done) }
         #endif
     }
 
@@ -857,6 +862,7 @@ final class AppStore: ObservableObject {
     }
 
     func exportQingzi(start: Date? = nil, end: Date? = nil, completion: @escaping (String?) -> Void) {
+        dataManagementError = nil
         #if canImport(OmniFlowShared)
         let orderedStart = start.map { Calendar.current.startOfDay(for: $0) }
         let orderedEnd = end.map { Calendar.current.startOfDay(for: $0) }
@@ -867,16 +873,17 @@ final class AppStore: ObservableObject {
             startMillis: Self.boxedLong(rangeStart.map { Int64($0.timeIntervalSince1970 * 1000) }),
             endMillis: Self.boxedLong(rangeEnd.map { Int64($0.timeIntervalSince1970 * 1000) })
         ) { [weak self] payload, _, message in
-            Task { @MainActor in if let message { self?.error = message }; completion(payload) }
+            Task { @MainActor in self?.dataManagementError = message; completion(payload) }
         }
         #else
         completion(nil)
-        error = "共享 Framework 尚未构建"
+        dataManagementError = "共享 Framework 尚未构建"
         #endif
     }
 
     func importFile(_ url: URL, selectedFormat: AppleImportFormat? = nil) {
-        guard let ledgerID = resourceLedgerID else { error = "请先选择账本"; return }
+        clearImportFeedback()
+        guard let ledgerID = resourceLedgerID else { importError = "请先选择账本"; return }
         #if canImport(OmniFlowShared)
         Task {
             do {
@@ -891,14 +898,14 @@ final class AppStore: ObservableObject {
                 importSubscription?.cancel()
                 importSubscription = bridge.previewImport(ledgerId: ledgerID, fileName: url.lastPathComponent, bytes: bytes, formatName: selectedFormat?.rawValue) { [weak self] preview, message in
                     Task { @MainActor in
-                        if let message { self?.error = message }
+                        self?.importError = message
                         self?.applyImportPreview(preview)
                     }
                 }
-            } catch { self.error = error.localizedDescription }
+            } catch { self.importError = error.localizedDescription }
         }
         #else
-        error = "共享 Framework 尚未构建"
+        importError = "共享 Framework 尚未构建"
         #endif
     }
 
@@ -916,7 +923,7 @@ final class AppStore: ObservableObject {
             excluded: item.excluded,
             skipped: item.skipped
         ) { [weak self] preview, message in
-            Task { @MainActor in if let message { self?.error = message }; self?.applyImportPreview(preview) }
+            Task { @MainActor in self?.importError = message; self?.applyImportPreview(preview) }
         }
         #endif
     }
@@ -937,7 +944,7 @@ final class AppStore: ObservableObject {
         guard let sessionID = importSessionID, !selectedImportItemIDs.isEmpty else { return }
         #if canImport(OmniFlowShared)
         bridge.editImportCategories(sessionId: sessionID, itemIds: selectedImportItemIDs, categoryId: categoryID) { [weak self] preview, message in
-            Task { @MainActor in if let message { self?.error = message }; self?.applyImportPreview(preview) }
+            Task { @MainActor in self?.importError = message; self?.applyImportPreview(preview) }
         }
         #endif
     }
@@ -946,7 +953,7 @@ final class AppStore: ObservableObject {
         guard let sessionID = importSessionID, !selectedImportItemIDs.isEmpty else { return }
         #if canImport(OmniFlowShared)
         bridge.editImportSkipped(sessionId: sessionID, itemIds: selectedImportItemIDs, skipped: skipped) { [weak self] preview, message in
-            Task { @MainActor in if let message { self?.error = message }; self?.applyImportPreview(preview) }
+            Task { @MainActor in self?.importError = message; self?.applyImportPreview(preview) }
         }
         #endif
     }
@@ -956,8 +963,9 @@ final class AppStore: ObservableObject {
         #if canImport(OmniFlowShared)
         bridge.commitImport(sessionId: sessionID) { [weak self] result, message in
             Task { @MainActor in
-                self?.error = message ?? result.map { "已导入 \($0.importedCount) 条" }
-                if message == nil {
+                self?.importError = message
+                self?.importMessage = message == nil ? result.map { "已导入 \($0.importedCount) 条" } : nil
+                if message == nil, result != nil {
                     self?.importItems = []
                     self?.selectedImportItemIDs = []
                     self?.importSessionID = nil
@@ -968,8 +976,23 @@ final class AppStore: ObservableObject {
         #endif
     }
 
+    func clearImportFeedback() {
+        importError = nil
+        importMessage = nil
+    }
+
     private func perform(_ operation: (@escaping (String?) -> Void) -> Void) {
         operation { [weak self] message in Task { @MainActor in self?.error = message } }
+    }
+
+    private func performManagement(_ operation: (@escaping (String?) -> Void) -> Void) {
+        managementError = nil
+        operation { [weak self] message in Task { @MainActor in self?.managementError = message } }
+    }
+
+    private func performDataManagement(_ operation: (@escaping (String?) -> Void) -> Void) {
+        dataManagementError = nil
+        operation { [weak self] message in Task { @MainActor in self?.dataManagementError = message } }
     }
 
     #if canImport(OmniFlowShared)
@@ -1064,7 +1087,7 @@ final class AppStore: ObservableObject {
         })
         subscriptions.append(bridge.watchSyncState { [weak self] value, message in
             Task { @MainActor in
-                if let message { self?.error = message }
+                if let message { self?.dataManagementError = message }
                 self?.syncPhase = value?.phase ?? "IDLE"
                 self?.syncProgress = value?.progress?.doubleValue
                 self?.syncLastBackupAt = value?.lastBackupAt

@@ -121,11 +121,15 @@ struct DataManagementView: View {
                 NavigationLink("导入账单") { ImportView() }
                 NavigationLink("导出青子记账 JSON") { ExportView() }
             }
-            if let error = store.error { Text(error).foregroundStyle(.red) }
+            if let error = store.dataManagementError { Text(error).foregroundStyle(.red) }
         }
         .formStyle(.grouped)
         .navigationTitle("数据管理")
-        .onAppear { password = KeychainPassword.load() }
+        .onAppear {
+            password = KeychainPassword.load()
+            store.dataManagementError = nil
+            store.loadBackups()
+        }
         .confirmationDialog("完整恢复会替换当前全部可恢复数据", isPresented: Binding(get: { restoreID != nil }, set: { if !$0 { restoreID = nil } })) {
             Button("先备份当前数据") { store.syncNow(target: syncTarget, retention: retention) }
             Button("确认恢复", role: .destructive) { if let restoreID { store.restoreBackup(id: restoreID) }; restoreID = nil }
@@ -499,12 +503,15 @@ private struct ImportView: View {
                 }
                 Button("确认入账", action: store.commitImport).disabled(!store.importReady)
             }
-            if let error = store.error {
+            if let message = store.importMessage {
+                Section { Label(message, systemImage: "checkmark.circle").foregroundStyle(Color.income) }
+            }
+            if let error = store.importError {
                 Section { Text(error).foregroundStyle(.red) }
             }
         }
         .navigationTitle("导入")
-        .onAppear { store.error = nil }
+        .onAppear(perform: store.clearImportFeedback)
         // fileImporter 挂在 List 上在 iOS 中无法可靠弹出（无法找到 presentationAnchor）
         // 挂在 background EmptyView 上提供稳定的呈现锚点
         .background(
@@ -536,8 +543,12 @@ private struct ExportView: View {
                     exporting = document != nil
                 }
             }
+            if let error = store.dataManagementError {
+                Text(error).foregroundStyle(.red)
+            }
         }
         .padding()
+        .onAppear { store.dataManagementError = nil }
         .navigationTitle("导出")
         .fileExporter(isPresented: $exporting, document: document, contentType: .json, defaultFilename: "OmniFlow-Qingzi") { _ in document = nil }
     }
@@ -552,13 +563,20 @@ private struct QingziDocument: FileDocument {
 }
 
 private struct ManagementContainer<Content: View>: View {
+    @EnvironmentObject private var store: AppStore
     let title: String
     let add: () -> Void
     @ViewBuilder let content: Content
     var body: some View {
-        List { content }
+        List {
+            content
+            if let error = store.managementError {
+                Section { Text(error).foregroundStyle(.red) }
+            }
+        }
             .navigationTitle(title)
             .toolbar { Button(action: add) { Label("新增", systemImage: "plus") } }
+            .onAppear { store.managementError = nil }
     }
 }
 
