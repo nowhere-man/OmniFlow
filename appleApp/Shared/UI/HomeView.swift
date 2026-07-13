@@ -143,7 +143,9 @@ private struct HomeCalendarView: View {
     var body: some View {
         VStack(spacing: 12) {
             LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(Calendar.current.veryShortStandaloneWeekdaySymbols, id: \.self) { Text($0).font(.caption).foregroundStyle(.secondary) }
+                ForEach(Array(Calendar.current.veryShortStandaloneWeekdaySymbols.enumerated()), id: \.offset) { _, symbol in
+                    Text(symbol).font(.caption).foregroundStyle(.secondary)
+                }
                 ForEach(0..<leadingBlankCount, id: \.self) { _ in Color.clear.frame(height: 56) }
                 ForEach(1...dayCount, id: \.self) { day in
                     let date = date(day)
