@@ -72,7 +72,6 @@ import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toLocalDateTime
 import kotlin.math.max
 
-private val AnalyticsIncomeColor = Color(0xFF55B6A7)
 private val AnalyticsColors = listOf(
     Color(0xFFD5A75A), Color(0xFF69A9D0), Color(0xFF8D7AC4), Color(0xFFD9809C),
     Color(0xFF86A878), Color(0xFF78869B), Color(0xFFB58A68),
@@ -198,7 +197,7 @@ private fun YearBars(
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-            BarLegend(AnalyticsIncomeColor, "收入")
+            BarLegend(IncomeColor, "收入")
             Spacer(Modifier.width(16.dp))
             BarLegend(ExpenseColor, "支出")
         }
@@ -226,7 +225,7 @@ private fun MonthBars(
         if (layout == BarLayout.DIVERGING) {
             Column(Modifier.height(126.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
-                    Bar(month.income.minor, maximum, AnalyticsIncomeColor)
+                    Bar(month.income.minor, maximum, IncomeColor)
                 }
                 Box(Modifier.height(1.dp).fillMaxWidth().background(MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)))
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
@@ -235,7 +234,7 @@ private fun MonthBars(
             }
         } else {
             Row(Modifier.height(126.dp), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.Bottom) {
-                Bar(month.income.minor, maximum, AnalyticsIncomeColor)
+                Bar(month.income.minor, maximum, IncomeColor)
                 Bar(month.expense.minor, maximum, ExpenseColor)
             }
         }
@@ -279,7 +278,7 @@ private fun RankingCard(dashboard: AnalyticsDashboardState, selected: Transactio
                     }
                     Spacer(Modifier.width(10.dp))
                     Text(item.categoryDisplayName, Modifier.weight(1f), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(item.amount.asRmb(), fontWeight = FontWeight.Bold, color = if (selected == TransactionType.EXPENSE) ExpenseColor else AnalyticsIncomeColor)
+                    Text(item.amount.asRmb(), fontWeight = FontWeight.Bold, color = if (selected == TransactionType.EXPENSE) ExpenseColor else IncomeColor)
                 }
             }
         }
@@ -460,7 +459,7 @@ private fun StatementTableSheet(table: StatementTable, onDismiss: () -> Unit) {
 private fun StatementRow(label: String, income: Money, expense: Money) {
     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(label, Modifier.width(46.dp), fontWeight = FontWeight.SemiBold)
-        Text("收入 ${income.asRmb()}", Modifier.weight(1f), color = AnalyticsIncomeColor)
+        Text("收入 ${income.asRmb()}", Modifier.weight(1f), color = IncomeColor)
         Text("支出 ${expense.asRmb()}", Modifier.weight(1f), color = ExpenseColor)
     }
 }

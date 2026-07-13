@@ -116,8 +116,6 @@ private enum class MainDestination(val label: String, val icon: ImageVector) {
     MORE("更多", Icons.Default.MoreHoriz),
 }
 
-private val IncomeColor = Color(0xFF2E7D32)
-
 @Composable
 fun OmniFlowApp(viewModel: OmniFlowViewModel) {
     val homeState by viewModel.homeUiState.collectAsState()

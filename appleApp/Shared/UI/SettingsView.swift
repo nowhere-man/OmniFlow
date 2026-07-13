@@ -3,6 +3,7 @@ import SwiftUI
 
 extension Color {
     static let expense = Color(red: 232 / 255, green: 121 / 255, blue: 112 / 255)
+    static let income = Color(red: 85 / 255, green: 182 / 255, blue: 167 / 255)
 }
 
 enum AppThemeColor: String, CaseIterable, Identifiable {

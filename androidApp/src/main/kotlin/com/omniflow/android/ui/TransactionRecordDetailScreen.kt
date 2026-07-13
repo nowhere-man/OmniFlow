@@ -122,7 +122,7 @@ internal fun TransactionRecordDetailSheet(
                                     fontWeight = FontWeight.Bold,
                                     color = if (transaction.type == TransactionType.EXPENSE) {
                                         ExpenseColor
-                                    } else MaterialTheme.colorScheme.primary,
+                                    } else IncomeColor,
                                 )
                             }
                         }

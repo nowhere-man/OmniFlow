@@ -158,7 +158,7 @@ private struct HomeCalendarView: View {
                                 .background(isToday ? themeColor : .clear, in: Circle())
                             if let displayAmount = summary?.displayAmountMinor {
                                 Text("\(summary?.displayIsIncome == true ? "+" : "−")\(store.calendarAmountText(displayAmount))")
-                                    .foregroundStyle(summary?.displayIsIncome == true ? themeColor : Color.expense)
+                                    .foregroundStyle(summary?.displayIsIncome == true ? Color.income : Color.expense)
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.7)
                                     .frame(height: 14)
@@ -188,7 +188,6 @@ private struct HomeCalendarView: View {
 
 struct DateTransactionDetailView: View {
     @EnvironmentObject private var store: AppStore
-    @Environment(\.appThemeColor) private var themeColor
     @State private var displayMode: TransactionDisplayMode = .card
 
     var body: some View {
@@ -200,7 +199,7 @@ struct DateTransactionDetailView: View {
                             Text("支出 \(store.dateDetailExpenseMinor.wholeRmb)").foregroundStyle(Color.expense)
                         }
                         if store.dateDetailType != .expense {
-                            Text("收入 \(store.dateDetailIncomeMinor.wholeRmb)").foregroundStyle(themeColor)
+                            Text("收入 \(store.dateDetailIncomeMinor.wholeRmb)").foregroundStyle(Color.income)
                         }
                         Spacer()
                         displayModeButton
@@ -280,7 +279,6 @@ struct DateTransactionDetailView: View {
 }
 
 private struct TransactionGroupsView: View {
-    @Environment(\.appThemeColor) private var themeColor
     let items: [TransactionUI]
     let displayMode: TransactionDisplayMode
     let onEdit: (TransactionUI) -> Void
@@ -296,7 +294,7 @@ private struct TransactionGroupsView: View {
                             Text("支出 \(group.expenseMinor.wholeRmb)").foregroundStyle(Color.expense)
                         }
                         if group.incomeMinor != 0 {
-                            Text("收入 \(group.incomeMinor.wholeRmb)").foregroundStyle(themeColor)
+                            Text("收入 \(group.incomeMinor.wholeRmb)").foregroundStyle(Color.income)
                         }
                     }
                     .font(.caption.weight(.semibold))
@@ -340,7 +338,6 @@ private struct TransactionCollectionView: View {
 private struct TransactionRow: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.appThemeColor) private var themeColor
     let item: TransactionUI
     let onEdit: (TransactionUI) -> Void
 
@@ -364,7 +361,7 @@ private struct TransactionRow: View {
                 Spacer()
                 VStack(alignment: .trailing) {
                     Text("\(item.type == .expense ? "−" : "+")\(item.amountMinor.rmb)")
-                        .foregroundStyle(item.type == .expense ? Color.expense : themeColor)
+                        .foregroundStyle(item.type == .expense ? Color.expense : Color.income)
                         .fontWeight(.semibold)
                     Text(store.hourMinuteText(item.date)).font(.caption).foregroundStyle(.secondary)
                 }
@@ -380,7 +377,6 @@ private struct TransactionRow: View {
 private struct TransactionCard: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.appThemeColor) private var themeColor
     let item: TransactionUI
     let onEdit: (TransactionUI) -> Void
 
@@ -396,7 +392,7 @@ private struct TransactionCard: View {
                     Spacer()
                     Text("\(item.type == .expense ? "−" : "+")\(item.amountMinor.rmb)")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(item.type == .expense ? Color.expense : themeColor)
+                        .foregroundStyle(item.type == .expense ? Color.expense : Color.income)
                 }
                 Text(item.categoryDisplayName).fontWeight(.semibold).lineLimit(1)
                 HStack(alignment: .firstTextBaseline) {

@@ -11,6 +11,7 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.toLocalDateTime
 
 internal val ExpenseColor = Color(0xFFE87970)
+internal val IncomeColor = Color(0xFF55B6A7)
 
 internal fun Money.asRmb(): String {
     val absolute = kotlin.math.abs(minor)

@@ -152,7 +152,7 @@ internal fun SearchScreen(
                     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("共 ${result.items.size} 笔匹配交易", fontWeight = FontWeight.SemiBold)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("收入 ${result.summary.incomeTotal.asRmb()}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                            Text("收入 ${result.summary.incomeTotal.asRmb()}", color = IncomeColor, fontWeight = FontWeight.SemiBold)
                             Text("支出 ${result.summary.expenseTotal.asRmb()}", color = ExpenseColor, fontWeight = FontWeight.SemiBold)
                         }
                         if (result.items.any { it.transaction.isExcluded }) {
@@ -233,7 +233,7 @@ internal fun SearchScreen(
                             fontWeight = FontWeight.Bold,
                             color = if (item.transaction.type == TransactionType.EXPENSE) {
                                 ExpenseColor
-                            } else MaterialTheme.colorScheme.primary,
+                            } else IncomeColor,
                         )
                     }
                 }
@@ -363,7 +363,7 @@ private fun SearchTypeSelector(selected: TransactionType?, onSelected: (Transact
                             color = when {
                                 !active -> MaterialTheme.colorScheme.onSurfaceVariant
                                 type == TransactionType.EXPENSE -> ExpenseColor
-                                else -> MaterialTheme.colorScheme.primary
+                                else -> IncomeColor
                             },
                         )
                     }

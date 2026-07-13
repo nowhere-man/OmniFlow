@@ -249,7 +249,7 @@ struct SearchView: View {
                 Spacer()
                 Text(item.amountMinor.rmb)
                     .fontWeight(.bold).monospacedDigit()
-                    .foregroundStyle(item.type == .expense ? Color.expense : themeColor)
+                    .foregroundStyle(item.type == .expense ? Color.expense : Color.income)
             }
             .padding(12)
             .contentShape(Rectangle())
@@ -264,7 +264,7 @@ struct SearchView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("共 \(store.searchResults.count) 笔匹配交易").font(.headline)
             HStack {
-                Text("收入 \(store.searchIncomeMinor.rmb)").foregroundStyle(themeColor)
+                Text("收入 \(store.searchIncomeMinor.rmb)").foregroundStyle(Color.income)
                 Spacer()
                 Text("支出 \(store.searchExpenseMinor.rmb)").foregroundStyle(Color.expense)
             }

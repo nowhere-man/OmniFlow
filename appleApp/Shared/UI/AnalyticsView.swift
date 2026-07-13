@@ -455,7 +455,3 @@ private struct AnalyticsCard<Content: View>: View {
 }
 
 private let analyticsPalette: [Color] = [.purple, .orange, .teal, .pink, .green, .indigo, .brown]
-
-private extension Color {
-    static let income = Color(red: 85 / 255, green: 182 / 255, blue: 167 / 255)
-}
