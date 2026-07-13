@@ -32,7 +32,10 @@ struct MoreView: View {
         case "RUNNING": return "正在同步 \(Int((store.syncProgress ?? 0) * 100))%"
         case "SUCCESS": return "最近同步 \(store.syncLastBackupAt ?? "刚刚")"
         case "ERROR": return store.syncError ?? "同步失败"
-        default: return store.backups.isEmpty ? "尚未同步" : "最近同步 \(store.backups.first?.createdAt ?? "")"
+        default:
+            if let last = store.syncLastBackupAt { return "最近同步 \(last)" }
+            if let last = store.backups.first?.createdAt { return "最近同步 \(last)" }
+            return "尚未同步"
         }
     }
 }
