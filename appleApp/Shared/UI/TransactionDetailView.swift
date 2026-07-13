@@ -162,13 +162,14 @@ struct TransactionDetailView: View {
     }
 
     private var secondaryCategoryName: String {
-        guard let loadedDetail else { return "加载中…" }
+        guard let loadedDetail else { return error == nil ? "加载中…" : "加载失败" }
         return loadedDetail.secondaryCategoryName ?? "未设置"
     }
 
     private var tagText: String {
         guard let loadedDetail else {
-            return transaction.tagNames.isEmpty ? "加载中…" : transaction.tagNames.joined(separator: " · ")
+            if !transaction.tagNames.isEmpty { return transaction.tagNames.joined(separator: " · ") }
+            return error == nil ? "加载中…" : "加载失败"
         }
         let names = loadedDetail.tagNames
         return names.isEmpty ? "未设置" : names.joined(separator: " · ")
