@@ -59,6 +59,7 @@ private struct ModuleSection: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 16)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     if module.0 != modules.last?.0 { Divider() }
@@ -474,11 +475,19 @@ private struct ImportView: View {
                 }
                 Button("确认入账", action: store.commitImport).disabled(!store.importReady)
             }
+            if let error = store.error {
+                Section { Text(error).foregroundStyle(.red) }
+            }
         }
         .navigationTitle("导入")
-        .fileImporter(isPresented: $importing, allowedContentTypes: [.data]) { result in
-            if case let .success(url) = result { store.importFile(url, selectedFormat: selectedFormat) }
-        }
+        .onAppear { store.error = nil }
+        // fileImporter 挂在 List 上在 iOS 中无法可靠弹出（无法找到 presentationAnchor）
+        // 挂在 background EmptyView 上提供稳定的呈现锚点
+        .background(
+            EmptyView().fileImporter(isPresented: $importing, allowedContentTypes: [.data]) { result in
+                if case let .success(url) = result { store.importFile(url, selectedFormat: selectedFormat) }
+            }
+        )
     }
 }
 

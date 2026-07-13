@@ -191,6 +191,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: master
+
       - uses: actions/download-artifact@v7
         with:
           path: dist
@@ -202,3 +206,34 @@ jobs:
             dist/**/*.apk
             dist/**/*.ipa
             dist/**/*.dmg
+
+      - name: Update SideStore source
+        run: |
+          TAG="$GITHUB_REF_NAME"
+          VERSION="${TAG#v}"
+          IPA="dist/OmniFlow-iOS-arm64-IPA/OmniFlow-iOS-arm64-${TAG}-unsigned.ipa"
+          SIZE=$(stat -c %s "$IPA")
+          DATE=$(date -u +%F)
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/OmniFlow-iOS-arm64-${TAG}-unsigned.ipa"
+
+          jq \
+            --arg version "$VERSION" \
+            --arg date "$DATE" \
+            --arg url "$URL" \
+            --argjson size "$SIZE" \
+            '.apps[0].versions = ([{
+              version: $version,
+              date: $date,
+              localizedDescription: "查看 GitHub Release 获取本次更新内容。",
+              downloadURL: $url,
+              size: $size,
+              minOSVersion: "16.0"
+            }] + [.apps[0].versions[] | select(.version != $version)])' \
+            sidestore-source.json > sidestore-source.json.tmp
+          mv sidestore-source.json.tmp sidestore-source.json
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add sidestore-source.json
+          git diff --cached --quiet || git commit -m "chore: update SideStore source for ${TAG}"
+          git push origin master
