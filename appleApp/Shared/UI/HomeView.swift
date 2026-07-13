@@ -143,10 +143,10 @@ private struct HomeCalendarView: View {
     var body: some View {
         VStack(spacing: 12) {
             LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(Array(Calendar.current.veryShortStandaloneWeekdaySymbols.enumerated()), id: \.offset) { _, symbol in
-                    Text(symbol).font(.caption).foregroundStyle(.secondary)
+                ForEach(weekdayLabels) { label in
+                    Text(label.symbol).font(.caption).foregroundStyle(.secondary)
                 }
-                ForEach(0..<leadingBlankCount, id: \.self) { _ in Color.clear.frame(height: 56) }
+                ForEach(leadingBlankIDs, id: \.self) { _ in Color.clear.frame(height: 56) }
                 ForEach(1...dayCount, id: \.self) { day in
                     let date = date(day)
                     let summary = summaries[Calendar.current.startOfDay(for: date)]
@@ -180,12 +180,23 @@ private struct HomeCalendarView: View {
 
     private var interval: DateInterval { Calendar.current.dateInterval(of: .month, for: store.selectedMonth) ?? DateInterval(start: store.selectedMonth, duration: 30 * 86_400) }
     private var dayCount: Int { Calendar.current.range(of: .day, in: .month, for: interval.start)?.count ?? 30 }
+    private var weekdayLabels: [WeekdayLabel] {
+        Calendar.current.veryShortStandaloneWeekdaySymbols.enumerated().map {
+            WeekdayLabel(id: "weekday-\($0.offset)", symbol: $0.element)
+        }
+    }
+    private var leadingBlankIDs: [String] { (0..<leadingBlankCount).map { "blank-\($0)" } }
     private var leadingBlankCount: Int {
         let weekday = Calendar.current.component(.weekday, from: interval.start)
         return (weekday - Calendar.current.firstWeekday + 7) % 7
     }
     private var summaries: [Date: CalendarDayUI] { Dictionary(uniqueKeysWithValues: store.calendarDays.map { (Calendar.current.startOfDay(for: $0.date), $0) }) }
     private func date(_ day: Int) -> Date { Calendar.current.date(byAdding: .day, value: day - 1, to: interval.start) ?? interval.start }
+}
+
+private struct WeekdayLabel: Identifiable {
+    let id: String
+    let symbol: String
 }
 
 struct DateTransactionDetailView: View {
