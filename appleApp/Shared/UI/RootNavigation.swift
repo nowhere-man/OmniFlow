@@ -3,6 +3,7 @@ import SwiftUI
 #if os(iOS)
 struct PhoneRootView: View {
     @EnvironmentObject private var store: AppStore
+    @State private var lastContentDestination = MainDestination.home
 
     var body: some View {
         TabView(selection: phoneDestination) {
@@ -24,8 +25,11 @@ struct PhoneRootView: View {
         }
         .sheet(isPresented: Binding(
             get: { store.destination == .transaction },
-            set: { if !$0 { store.destination = .home } }
-        )) {
+            set: { if !$0 { store.destination = lastContentDestination } }
+        ), onDismiss: {
+            store.editingTransaction = nil
+            if store.destination == .transaction { store.destination = lastContentDestination }
+        }) {
             NavigationStack {
                 TransactionEditorView()
             }
@@ -35,15 +39,20 @@ struct PhoneRootView: View {
             TransactionDetailView(transaction: transaction)
                 .environmentObject(store)
         }
+        .onChange(of: store.destination) { destination in
+            if destination != .transaction { lastContentDestination = destination }
+        }
     }
 
     private var phoneDestination: Binding<MainDestination> {
         Binding(
-            get: { store.destination },
+            get: { store.destination == .transaction ? lastContentDestination : store.destination },
             set: { destination in
                 if destination == .transaction {
+                    if store.destination != .transaction { lastContentDestination = store.destination }
                     store.startNewTransaction()
                 } else {
+                    lastContentDestination = destination
                     store.destination = destination
                 }
             }

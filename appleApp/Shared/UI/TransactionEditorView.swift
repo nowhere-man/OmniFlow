@@ -3,6 +3,7 @@ import SwiftUI
 
 struct TransactionEditorView: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.dismiss) private var dismiss
     @State private var type: EntryType = .expense
     @State private var ledgerID = ""
     @State private var accountID = ""
@@ -19,7 +20,10 @@ struct TransactionEditorView: View {
 
     var body: some View {
         editorLayout
-            .editorNavigationChrome()
+            .transactionEditorNavigationChrome(
+                title: store.editingTransaction == nil ? "新建交易" : "编辑交易",
+                onCancel: dismiss.callAsFunction
+            )
             .onAppear(perform: loadDraft)
             .onChange(of: store.transactionDraftRevision) { _ in loadDraft() }
             .onChange(of: ledgerID) { value in
@@ -194,7 +198,7 @@ struct TransactionEditorView: View {
                 store.editingTagIDs = []
             } else {
                 store.editingTransaction = nil
-                store.destination = .home
+                dismiss()
             }
         }
     }
@@ -533,9 +537,15 @@ private struct TransactionTagPicker: View {
 
 private extension View {
     @ViewBuilder
-    func editorNavigationChrome() -> some View {
+    func transactionEditorNavigationChrome(title: String, onCancel: @escaping () -> Void) -> some View {
         #if os(iOS)
-        toolbar(.hidden, for: .navigationBar)
+        navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消", action: onCancel)
+                }
+            }
         #else
         self
         #endif
