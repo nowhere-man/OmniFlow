@@ -564,6 +564,7 @@ private fun ManagementRow(
     onDelete: () -> Unit,
     trailing: @Composable (() -> Unit)? = null,
 ) {
+    var confirmingDelete by remember { mutableStateOf(false) }
     Card(
         Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -578,8 +579,21 @@ private fun ManagementRow(
             }
             trailing?.invoke()
             TextButton(onClick = onEdit) { Text("编辑") }
-            TextButton(onClick = onDelete) { Text("删除") }
+            TextButton(onClick = { confirmingDelete = true }) { Text("删除") }
         }
+    }
+    if (confirmingDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmingDelete = false },
+            title = { Text("确认删除“$title”？") },
+            text = { Text("此操作无法撤销。") },
+            confirmButton = {
+                TextButton(onClick = { confirmingDelete = false; onDelete() }) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmingDelete = false }) { Text("取消") } },
+        )
     }
 }
 

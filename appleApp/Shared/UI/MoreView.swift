@@ -317,6 +317,7 @@ private struct RuleManagementView: View {
     @EnvironmentObject private var store: AppStore
     @State private var showingEditor = false
     @State private var editing: RuleUI?
+    @State private var deleting: RuleUI?
     var body: some View {
         ManagementContainer(title: "规则", add: { showingEditor = true }) {
             LedgerResourcePicker()
@@ -333,7 +334,7 @@ private struct RuleManagementView: View {
                         Button("下移") { store.moveRule(rule.id, offset: 1) }.disabled(index == ordered.count - 1)
                         Divider()
                         Button("编辑") { editing = rule; showingEditor = true }
-                        Button("删除", role: .destructive) { store.deleteRule(rule.id) }
+                        Button("删除", role: .destructive) { deleting = rule }
                     } label: {
                         Image(systemName: "ellipsis.circle").font(.title3)
                     }
@@ -347,6 +348,19 @@ private struct RuleManagementView: View {
                 showingEditor = false
             }
             .managementEditorSheet(title: editing == nil ? "新建规则" : "编辑规则") { showingEditor = false }
+        }
+        .confirmationDialog(
+            "确认删除“\(deleting?.name ?? "")”？",
+            isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                if let deleting { store.deleteRule(deleting.id) }
+                deleting = nil
+            }
+            Button("取消", role: .cancel) { deleting = nil }
+        } message: {
+            Text("此操作无法撤销。")
         }
     }
 }
@@ -555,6 +569,7 @@ private struct ManagementRow: View {
     let delete: () -> Void
     var auxiliaryTitle: String? = nil
     var auxiliary: (() -> Void)? = nil
+    @State private var confirmingDelete = false
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
@@ -565,13 +580,19 @@ private struct ManagementRow: View {
             Menu {
                 if let auxiliaryTitle, let auxiliary { Button(auxiliaryTitle, action: auxiliary) }
                 Button("编辑", action: edit)
-                Button("删除", role: .destructive, action: delete)
+                Button("删除", role: .destructive) { confirmingDelete = true }
             } label: {
                 Image(systemName: "ellipsis.circle").font(.title3)
             }
         }
         .padding(.vertical, 5)
         .contentShape(Rectangle())
+        .confirmationDialog("确认删除“\(title)”？", isPresented: $confirmingDelete, titleVisibility: .visible) {
+            Button("删除", role: .destructive, action: delete)
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("此操作无法撤销。")
+        }
     }
 }
 
