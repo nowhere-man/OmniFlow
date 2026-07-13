@@ -648,6 +648,7 @@ private struct AccountEditor: View {
     @State private var cardNumber: String
     @State private var note: String
     @State private var included: Bool
+    @State private var balanceError: String?
     let save: (String, Int64, String, String, String?, String?, Bool) -> Void
     init(account: AccountUI?, save: @escaping (String, Int64, String, String, String?, String?, Bool) -> Void) {
         _name = State(initialValue: account?.name ?? "")
@@ -657,6 +658,7 @@ private struct AccountEditor: View {
         _cardNumber = State(initialValue: account?.cardNumber ?? "")
         _note = State(initialValue: account?.note ?? "")
         _included = State(initialValue: account?.includeInTotalAssets ?? true)
+        _balanceError = State(initialValue: nil)
         self.save = save
     }
     var body: some View {
@@ -673,11 +675,19 @@ private struct AccountEditor: View {
             TextField("卡号（可选）", text: $cardNumber)
             TextField("备注（可选）", text: $note)
             TextField("余额", text: $balance)
+            if let balanceError {
+                Text(balanceError).foregroundStyle(Color.expense)
+            }
             Toggle("计入总资产", isOn: $included)
             Button("保存") {
+                guard let balanceMinor = balance.signedMoneyMinor else {
+                    balanceError = "请输入有效余额，最多两位小数"
+                    return
+                }
+                balanceError = nil
                 save(
                     name,
-                    balance.moneyMinor ?? 0,
+                    balanceMinor,
                     type,
                     iconKey,
                     cardNumber.isEmpty ? nil : cardNumber,

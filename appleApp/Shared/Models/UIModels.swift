@@ -267,8 +267,16 @@ extension Int64 {
 }
 
 extension String {
+    var signedMoneyMinor: Int64? {
+        guard let value = Decimal(string: trimmingCharacters(in: .whitespacesAndNewlines)) else { return nil }
+        let scaled = NSDecimalNumber(decimal: value * 100)
+        let minor = scaled.int64Value
+        guard scaled.compare(NSDecimalNumber(value: minor)) == .orderedSame else { return nil }
+        return minor
+    }
+
     var moneyMinor: Int64? {
-        guard let value = Decimal(string: trimmingCharacters(in: .whitespacesAndNewlines)), value >= 0 else { return nil }
-        return NSDecimalNumber(decimal: value * 100).int64Value
+        guard let minor = signedMoneyMinor, minor >= 0 else { return nil }
+        return minor
     }
 }

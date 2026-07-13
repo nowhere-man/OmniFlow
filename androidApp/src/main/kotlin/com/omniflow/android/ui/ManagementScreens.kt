@@ -153,15 +153,29 @@ private fun AccountDialog(
     var note by remember(account) { mutableStateOf(account?.note.orEmpty()) }
     var balance by remember(account) { mutableStateOf(account?.balance?.toDecimal().orEmpty()) }
     var included by remember(account) { mutableStateOf(account?.includeInTotalAssets ?: true) }
+    var balanceError by remember(account) { mutableStateOf<String?>(null) }
     FormDialog(if (account == null) "新建账户" else "编辑账户", onDismiss, {
-        onSave(name, type, icon, card.ifBlank { null }, note.ifBlank { null }, balance.toMoney(), included)
+        val parsedBalance = balance.toMoneyOrNull()
+        if (parsedBalance == null) {
+            balanceError = "请输入有效余额，最多两位小数"
+        } else {
+            balanceError = null
+            onSave(name, type, icon, card.ifBlank { null }, note.ifBlank { null }, parsedBalance, included)
+        }
     }) {
         OutlinedTextField(name, { name = it }, label = { Text("名称") }, modifier = Modifier.fillMaxWidth())
         ValueMenu(type.label, AccountType.entries, { it.label }) { type = it }
         ValueMenu(icon, BundledIconKeys, { it }) { icon = it }
         OutlinedTextField(card, { card = it }, label = { Text("卡号（可选）") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(note, { note = it }, label = { Text("备注（可选）") }, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(balance, { balance = it }, label = { Text("当前余额") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(
+            balance,
+            { balance = it; balanceError = null },
+            label = { Text("当前余额") },
+            modifier = Modifier.fillMaxWidth(),
+            isError = balanceError != null,
+            supportingText = { balanceError?.let { Text(it) } },
+        )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("计入总资产", modifier = Modifier.weight(1f))
             Switch(included, { included = it })
@@ -496,7 +510,7 @@ private fun ReminderDialog(
         onSave(
             type,
             name,
-            amount.takeIf(String::isNotBlank)?.toMoney(),
+            amount.takeIf(String::isNotBlank)?.toMoneyOrNull(),
             ReminderSchedule(
                 kind = kind,
                 dayOfMonth = day.toIntOrNull(),
@@ -674,13 +688,12 @@ private val RuleActionType.label: String
         RuleActionType.EXCLUDE -> "排除不入账"
     }
 
-private fun Money.toDecimal(): String = "${minor / 100}.${kotlin.math.abs(minor % 100).toString().padStart(2, '0')}"
+private fun Money.toDecimal(): String = java.math.BigDecimal.valueOf(minor, 2).toPlainString()
 
-private fun String.toMoney(): Money {
-    val parts = trim().ifBlank { "0" }.split('.', limit = 2)
-    val yuan = parts.firstOrNull()?.toLongOrNull() ?: 0L
-    val cents = parts.getOrElse(1) { "" }.take(2).padEnd(2, '0').toLongOrNull() ?: 0L
-    return Money(yuan * 100 + if (yuan < 0) -cents else cents)
+private fun String.toMoneyOrNull(): Money? {
+    val value = trim().toBigDecimalOrNull() ?: return null
+    if (value.scale() > 2) return null
+    return runCatching { Money(value.movePointRight(2).longValueExact()) }.getOrNull()
 }
 
 private val BundledIconKeys = listOf(
