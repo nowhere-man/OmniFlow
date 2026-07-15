@@ -1,4 +1,7 @@
 import Foundation
+#if os(iOS)
+import WidgetKit
+#endif
 
 #if canImport(OmniFlowShared)
 import OmniFlowShared
@@ -19,7 +22,7 @@ final class AppStore: ObservableObject {
     @Published var resourceLedgerID: String?
     @Published var selectedMonth = Date()
     @Published var calendarFilter = "ALL"
-    @Published var calendarDays: [CalendarDayUI] = []
+    @Published var calendarDaySummaries: [Date: CalendarDayUI] = [:]
     @Published var transactionDisplayMode: TransactionDisplayMode = .list
     @Published var selectedDetailRange: DateInterval?
     @Published var dateDetailLedgerID: String?
@@ -938,6 +941,9 @@ final class AppStore: ObservableObject {
 
     func setThemeColor(_ color: String) {
         themeColor = color
+        #if os(iOS)
+        WidgetThemePreferences.save(color)
+        #endif
         perform { done in
             #if canImport(OmniFlowShared)
             bridge.setThemeColor(colorName: color, callback: done)
@@ -1252,7 +1258,11 @@ final class AppStore: ObservableObject {
                 if let message { self?.error = message }
                 self?.appLockEnabled = value?.appLockEnabled ?? false
                 self?.appearanceMode = value?.appearanceMode ?? "SYSTEM"
-                self?.themeColor = value?.themeColor ?? "LAVENDER"
+                let themeColor = value?.themeColor ?? "LAVENDER"
+                self?.themeColor = themeColor
+                #if os(iOS)
+                WidgetThemePreferences.save(themeColor)
+                #endif
                 self?.selectedLedgerID = value?.homeLedgerId
                 self?.analyticsLedgerID = value?.analyticsLedgerId
                 self?.transactionDisplayMode = TransactionDisplayMode(rawValue: value?.transactionDetailDisplayMode ?? "LIST") ?? .list
@@ -1291,7 +1301,8 @@ final class AppStore: ObservableObject {
                 self?.incomeMinor = value?.summary.incomeTotal ?? 0
                 self?.transactions = value?.groups.flatMap { $0.items }.map { Self.transaction($0) } ?? []
                 let filterName = self?.calendarFilter ?? "ALL"
-                self?.calendarDays = value?.calendar.map { summary in
+                let calendar = Calendar.current
+                let days = value?.calendar.map { summary in
                     let display = self?.bridge.calendarDisplayAmount(summary: summary, filterName: filterName)
                     return CalendarDayUI(
                         id: "\(summary.date.year)-\(summary.date.monthNumber)-\(summary.date.dayOfMonth)",
@@ -1302,6 +1313,7 @@ final class AppStore: ObservableObject {
                         displayIsIncome: display?.isIncome ?? false
                     )
                 } ?? []
+                self?.calendarDaySummaries = Dictionary(uniqueKeysWithValues: days.map { (calendar.startOfDay(for: $0.date), $0) })
             }
         }
     }
@@ -1436,3 +1448,15 @@ final class AppStore: ObservableObject {
     }
 
 }
+
+#if os(iOS)
+private enum WidgetThemePreferences {
+    private static let defaults = UserDefaults(suiteName: "group.com.omniflow.shared")
+
+    static func save(_ themeColor: String) {
+        guard defaults?.string(forKey: "themeColor") != themeColor else { return }
+        defaults?.set(themeColor, forKey: "themeColor")
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+}
+#endif

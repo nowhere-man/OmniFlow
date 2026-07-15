@@ -3,6 +3,7 @@ import SwiftUI
 #if os(iOS)
 struct PhoneRootView: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.colorScheme) private var colorScheme
     @State private var lastContentDestination = MainDestination.home
 
     var body: some View {
@@ -25,6 +26,11 @@ struct PhoneRootView: View {
         }
         .onChange(of: store.destination) { destination in
             if destination != .transaction { lastContentDestination = destination }
+        }
+        .task(id: "\(store.themeColor)|\(colorScheme)") {
+            let theme = AppThemeColor(rawValue: store.themeColor) ?? .lavender
+            let keys = bundledIconKeys.prefix(6).map { "fluent-\($0)" }
+            await SVGIconPreheater.preheat(keys: keys, tint: theme.cssColor(for: colorScheme))
         }
     }
 

@@ -184,7 +184,7 @@ private struct HomeCalendarView: View {
                 ForEach(leadingBlankIDs, id: \.self) { _ in Color.clear.frame(height: 56) }
                 ForEach(1...dayCount, id: \.self) { day in
                     let date = date(day)
-                    let summary = summaries[Calendar.current.startOfDay(for: date)]
+                    let summary = store.calendarDaySummaries[Calendar.current.startOfDay(for: date)]
                     let isToday = Calendar.current.isDateInToday(date)
                     Button { store.showDate(date) } label: {
                         VStack(spacing: 2) {
@@ -229,7 +229,6 @@ private struct HomeCalendarView: View {
         let weekday = calendar.component(.weekday, from: interval.start)
         return (weekday - calendar.firstWeekday + 7) % 7
     }
-    private var summaries: [Date: CalendarDayUI] { Dictionary(uniqueKeysWithValues: store.calendarDays.map { (calendar.startOfDay(for: $0.date), $0) }) }
     private func date(_ day: Int) -> Date { calendar.date(byAdding: .day, value: day - 1, to: interval.start) ?? interval.start }
 }
 
