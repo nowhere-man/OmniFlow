@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -121,6 +122,8 @@ internal fun MoreScreen(
     viewModel: OmniFlowViewModel,
     initialPage: MorePage = MorePage.HOME,
     onRequestNotificationPermission: () -> Unit,
+    dynamicColorEnabled: Boolean,
+    onDynamicColorChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val pageStackSaver = listSaver<List<MorePage>, String>(
@@ -149,7 +152,12 @@ internal fun MoreScreen(
         }
         when (page) {
             MorePage.HOME -> MoreHome(state, onPage = ::navigate)
-            MorePage.SETTINGS -> SettingsPage(state, viewModel) { navigate(MorePage.DATA) }
+            MorePage.SETTINGS -> SettingsPage(
+                state,
+                viewModel,
+                dynamicColorEnabled = dynamicColorEnabled,
+                onDynamicColorChanged = onDynamicColorChanged,
+            ) { navigate(MorePage.DATA) }
             MorePage.DATA -> DataManagementPage(state, viewModel, onPage = ::navigate)
             MorePage.IMPORT -> ImportPage(state, viewModel)
             MorePage.EXPORT -> ExportPage(state, viewModel)
@@ -173,7 +181,7 @@ internal fun MoreScreen(
 @Composable
 private fun MoreHome(state: MoreUiState, onPage: (MorePage) -> Unit) {
     LazyColumn(
-        Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        Modifier.readableContentWidth().fillMaxHeight().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item { Spacer(Modifier.height(8.dp)) }
@@ -296,7 +304,13 @@ private fun MorePage.description(state: MoreUiState): String = when (this) {
 }
 
 @Composable
-private fun SettingsPage(state: MoreUiState, viewModel: OmniFlowViewModel, onData: () -> Unit) {
+private fun SettingsPage(
+    state: MoreUiState,
+    viewModel: OmniFlowViewModel,
+    dynamicColorEnabled: Boolean,
+    onDynamicColorChanged: (Boolean) -> Unit,
+    onData: () -> Unit,
+) {
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -304,14 +318,14 @@ private fun SettingsPage(state: MoreUiState, viewModel: OmniFlowViewModel, onDat
                     title = "应用锁",
                     subtitle = "启动或回到前台时验证设备凭据",
                     icon = Icons.Default.Lock,
-                    shape = groupedOptionShape(0, 4),
+                    shape = groupedOptionShape(0, 5),
                     trailing = { Switch(state.preferences.appLockEnabled, viewModel::setAppLockEnabled) },
                 )
                 GroupedOptionRow(
                     title = "界面外观",
                     subtitle = "跟随系统、浅色或深色",
                     icon = Icons.Default.DarkMode,
-                    shape = groupedOptionShape(1, 4),
+                    shape = groupedOptionShape(1, 5),
                     content = {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             AppearanceMode.entries.forEach { mode ->
@@ -329,7 +343,7 @@ private fun SettingsPage(state: MoreUiState, viewModel: OmniFlowViewModel, onDat
                     title = "主题色",
                     subtitle = "选择按钮和导航的全局强调色",
                     icon = Icons.Default.Palette,
-                    shape = groupedOptionShape(2, 4),
+                    shape = groupedOptionShape(2, 5),
                     content = {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             items(ThemeColor.entries, key = { it.name }) { color ->
@@ -363,10 +377,17 @@ private fun SettingsPage(state: MoreUiState, viewModel: OmniFlowViewModel, onDat
                     },
                 )
                 GroupedOptionRow(
+                    title = "动态取色",
+                    subtitle = "使用 Android 系统壁纸生成 Material 3 配色（Android 12+）",
+                    icon = Icons.Default.Palette,
+                    shape = groupedOptionShape(3, 5),
+                    trailing = { Switch(dynamicColorEnabled, onDynamicColorChanged) },
+                )
+                GroupedOptionRow(
                     title = "数据管理",
                     subtitle = "备份、恢复、导入与导出",
                     icon = Icons.Default.Storage,
-                    shape = groupedOptionShape(3, 4),
+                    shape = groupedOptionShape(4, 5),
                     onClick = onData,
                     trailing = { Icon(Icons.Default.ChevronRight, contentDescription = "数据管理") },
                 )
