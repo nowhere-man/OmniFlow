@@ -71,19 +71,25 @@ final class AppStore: ObservableObject {
     @Published var themeColor = "LAVENDER"
     @Published var analyticsExpenseMinor: Int64 = 0
     @Published var analyticsIncomeMinor: Int64 = 0
+    @Published var analyticsPreviousExpenseMinor: Int64 = 0
+    @Published var analyticsPreviousIncomeMinor: Int64 = 0
+    @Published var analyticsTrend: [AnalyticsChartPointUI] = []
     @Published var analyticsRanking: [AnalyticsRankingUI] = []
     @Published var analyticsCategories: [CategoryBreakdownUI] = []
+    @Published var analyticsTags: [TagAnalysisUI] = []
     @Published var analyticsYearStatement: StatementTableUI?
     @Published var analyticsLedgerID: String?
     @Published var analyticsRankingType: EntryType = .expense
     @Published var analyticsCategoryType: EntryType = .expense
+    @Published var analyticsTagType: EntryType = .expense
     @Published var analyticsStatement: StatementTableUI?
+    @Published var analyticsStatus = AnalyticsStatus.idle
     @Published var backups: [BackupUI] = []
     @Published var syncPhase = "IDLE"
     @Published var syncProgress: Double?
     @Published var syncLastBackupAt: String?
     @Published var syncError: String?
-    private var analyticsObservation: (start: Date, end: Date, ledgerID: String?)?
+    private var analyticsObservation: (start: Date, end: Date, ledgerID: String?, granularity: AnalyticsGranularityUI)?
     private var pendingTransactionDetail: TransactionUI?
     private var pendingDateDetailDraft: (date: Date, ledgerID: String?)?
     private var searchDebounceTask: Task<Void, Never>?
@@ -137,8 +143,9 @@ final class AppStore: ObservableObject {
         #endif
     }
 
-    func observeAnalytics(start: Date, end: Date, ledgerID: String? = nil) {
-        analyticsObservation = (start, end, ledgerID)
+    func observeAnalytics(start: Date, end: Date, ledgerID: String? = nil, granularity: AnalyticsGranularityUI = .day) {
+        analyticsObservation = (start, end, ledgerID, granularity)
+        analyticsStatus = .loading
         #if canImport(OmniFlowShared)
         analyticsSubscription?.cancel()
         analyticsSubscription = bridge.watchAnalytics(
@@ -146,19 +153,47 @@ final class AppStore: ObservableObject {
             startMillis: Int64(start.timeIntervalSince1970 * 1000),
             endMillis: Int64(end.timeIntervalSince1970 * 1000),
             rankingTypeName: analyticsRankingType.rawValue,
-            categoryTypeName: analyticsCategoryType.rawValue
+            categoryTypeName: analyticsCategoryType.rawValue,
+            tagTypeName: analyticsTagType.rawValue,
+            trendGranularityName: granularity.rawValue
         ) { [weak self] value, message in
             Task { @MainActor in
-                if let message { self?.error = message }
+                if let message {
+                    self?.analyticsStatus = .failed(message)
+                    return
+                }
                 self?.analyticsExpenseMinor = value?.summary.expenseTotal ?? 0
                 self?.analyticsIncomeMinor = value?.summary.incomeTotal ?? 0
+                self?.analyticsPreviousExpenseMinor = value?.previousSummary.expenseTotal ?? 0
+                self?.analyticsPreviousIncomeMinor = value?.previousSummary.incomeTotal ?? 0
+                self?.analyticsTrend = value?.trend.points.map {
+                    AnalyticsChartPointUI(
+                        start: Date(timeIntervalSince1970: TimeInterval($0.start.epochSeconds)),
+                        label: $0.label,
+                        expenseMinor: $0.expense,
+                        incomeMinor: $0.income
+                    )
+                } ?? []
                 self?.analyticsRanking = value?.ranking.map {
                     AnalyticsRankingUI(
-                        id: "\($0.categoryId)-\($0.primaryCategoryName)-\($0.secondaryCategoryName ?? "")",
-                        primaryName: $0.primaryCategoryName,
-                        secondaryName: $0.secondaryCategoryName,
-                        iconKey: $0.iconKey,
-                        amount: $0.amount
+                        transaction: TransactionUI(
+                            id: $0.transactionId,
+                            ledgerID: $0.ledgerId,
+                            ledgerName: $0.ledgerName,
+                            accountID: $0.accountId,
+                            accountName: $0.accountName,
+                            categoryID: $0.categoryId,
+                            categoryName: $0.categoryName,
+                            primaryCategoryName: $0.primaryCategoryName,
+                            categoryIconKey: $0.iconKey,
+                            amountMinor: $0.amount,
+                            type: String(describing: $0.type).contains("INCOME") ? .income : .expense,
+                            date: Date(timeIntervalSince1970: TimeInterval($0.occurredAt.epochSeconds)),
+                            note: $0.note ?? "",
+                            excluded: false,
+                            source: $0.source.map { String(describing: $0).components(separatedBy: ".").last ?? "" },
+                            categoryDisplayName: $0.categoryDisplayName
+                        )
                     )
                 } ?? []
                 self?.analyticsCategories = value?.categoryBreakdowns.map {
@@ -172,6 +207,9 @@ final class AppStore: ObservableObject {
                         }
                     )
                 } ?? []
+                self?.analyticsTags = value?.tagAnalysis.map {
+                    TagAnalysisUI(id: $0.tagId, name: $0.tagName, amountMinor: $0.amount, transactionCount: Int($0.transactionCount))
+                } ?? []
                 if let statement = value?.yearStatement {
                     self?.analyticsYearStatement = StatementTableUI(
                         year: Int(statement.year),
@@ -182,8 +220,11 @@ final class AppStore: ObservableObject {
                 } else {
                     self?.analyticsYearStatement = nil
                 }
+                self?.analyticsStatus = .loaded
             }
         }
+        #else
+        analyticsStatus = .failed("共享 Framework 尚未构建")
         #endif
     }
 
@@ -623,7 +664,8 @@ final class AppStore: ObservableObject {
             observeAnalytics(
                 start: analyticsObservation.start,
                 end: analyticsObservation.end,
-                ledgerID: analyticsObservation.ledgerID
+                ledgerID: analyticsObservation.ledgerID,
+                granularity: analyticsObservation.granularity
             )
         }
     }

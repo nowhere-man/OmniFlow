@@ -39,6 +39,7 @@ import com.omniflow.shared.domain.model.SyncConfig
 import com.omniflow.shared.domain.model.SyncState
 import com.omniflow.shared.domain.model.SyncTarget
 import com.omniflow.shared.domain.model.ThemeColor
+import com.omniflow.shared.domain.model.TimeGranularity
 import com.omniflow.shared.domain.model.Tag
 import com.omniflow.shared.domain.model.Transaction
 import com.omniflow.shared.domain.model.TransactionDetailDisplayMode
@@ -95,13 +96,14 @@ data class AnalyticsUiState(
     val statementTable: StatementTable? = null,
     val ledgers: List<Ledger> = emptyList(),
     val scope: LedgerScope = LedgerScope.All,
-    val rangeMode: AnalyticsRangeMode = AnalyticsRangeMode.WEEK,
+    val rangeMode: AnalyticsRangeMode = AnalyticsRangeMode.MONTH,
     val range: DateRange = analyticsRange(
-        AnalyticsRangeMode.WEEK,
+        AnalyticsRangeMode.MONTH,
         Clock.System.now().toLocalDateTime(ChinaTimeZone).date,
     ),
     val rankingType: TransactionType = TransactionType.EXPENSE,
     val categoryType: TransactionType = TransactionType.EXPENSE,
+    val tagType: TransactionType = TransactionType.EXPENSE,
     val isLoading: Boolean = true,
     val error: String? = null,
 )
@@ -407,6 +409,10 @@ class OmniFlowViewModel(
         _analyticsUiState.value = _analyticsUiState.value.copy(categoryType = type)
         observeAnalytics()
     }
+    fun setTagType(type: TransactionType) {
+        _analyticsUiState.value = _analyticsUiState.value.copy(tagType = type)
+        observeAnalytics()
+    }
     fun selectAnalyticsMonth(month: Int) {
         val year = _analyticsUiState.value.dashboard?.yearStatement?.year
             ?: _analyticsUiState.value.range.startInclusive.toLocalDateTime(ChinaTimeZone).year
@@ -441,6 +447,8 @@ class OmniFlowViewModel(
                     range = current.range,
                     rankingType = current.rankingType,
                     categoryShareType = current.categoryType,
+                    tagAnalysisType = current.tagType,
+                    trendGranularity = analyticsGranularity(current.rangeMode, current.range),
                 ),
             ).collect { result ->
                 _analyticsUiState.value = _analyticsUiState.value.copy(
@@ -1119,6 +1127,15 @@ private fun analyticsRange(mode: AnalyticsRangeMode, anchor: LocalDate): DateRan
         LocalDate(anchor.year + 1, 1, 1).atStartOfDayIn(ChinaTimeZone),
     )
     AnalyticsRangeMode.CUSTOM -> monthRange(anchor)
+}
+
+private fun analyticsGranularity(mode: AnalyticsRangeMode, range: DateRange): TimeGranularity = when (mode) {
+    AnalyticsRangeMode.WEEK, AnalyticsRangeMode.MONTH -> TimeGranularity.DAY
+    AnalyticsRangeMode.YEAR -> TimeGranularity.MONTH
+    AnalyticsRangeMode.CUSTOM -> {
+        val days = (range.endExclusive.toEpochMilliseconds() - range.startInclusive.toEpochMilliseconds()) / 86_400_000
+        if (days <= 90) TimeGranularity.DAY else TimeGranularity.MONTH
+    }
 }
 
 private fun javaDate(date: LocalDate) = JavaLocalDate.of(date.year, date.monthNumber, date.dayOfMonth)

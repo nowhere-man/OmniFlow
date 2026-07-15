@@ -37,6 +37,7 @@ import com.omniflow.shared.domain.model.SyncConfig
 import com.omniflow.shared.domain.model.SyncState
 import com.omniflow.shared.domain.model.SyncTarget
 import com.omniflow.shared.domain.model.StatementTable
+import com.omniflow.shared.domain.model.TimeGranularity
 import com.omniflow.shared.domain.model.TransactionDetailQuery
 import com.omniflow.shared.domain.model.TransactionDetailState
 import com.omniflow.shared.domain.model.TransactionSearchQuery
@@ -170,6 +171,8 @@ class AppleAppBridge(val app: SharedApp) {
         endMillis: Long,
         rankingTypeName: String = TransactionType.EXPENSE.name,
         categoryTypeName: String = TransactionType.EXPENSE.name,
+        tagTypeName: String = TransactionType.EXPENSE.name,
+        trendGranularityName: String = TimeGranularity.DAY.name,
         callback: (AnalyticsDashboardState?, String?) -> Unit,
     ) = watchAnalytics(
         AnalyticsQuery(
@@ -177,6 +180,8 @@ class AppleAppBridge(val app: SharedApp) {
             range = DateRange(Instant.fromEpochMilliseconds(startMillis), Instant.fromEpochMilliseconds(endMillis)),
             rankingType = TransactionType.valueOf(rankingTypeName),
             categoryShareType = TransactionType.valueOf(categoryTypeName),
+            tagAnalysisType = TransactionType.valueOf(tagTypeName),
+            trendGranularity = TimeGranularity.valueOf(trendGranularityName),
         ),
         callback,
     )

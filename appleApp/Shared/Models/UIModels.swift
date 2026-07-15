@@ -169,12 +169,33 @@ struct CalendarDayUI: Identifiable, Hashable {
     var displayIsIncome: Bool
 }
 struct AnalyticsRankingUI: Identifiable, Hashable {
-    let id: String
-    var primaryName: String
-    var secondaryName: String?
-    var iconKey: String?
-    var amount: Int64
+    var transaction: TransactionUI
+    var id: String { transaction.id }
+    var primaryName: String { transaction.primaryCategoryName }
+    var secondaryName: String? { transaction.categoryName == transaction.primaryCategoryName ? nil : transaction.categoryName }
+    var iconKey: String? { transaction.categoryIconKey }
+    var amount: Int64 { transaction.amountMinor }
+    var date: Date { transaction.date }
+    var note: String { transaction.note }
     var displayName: String { secondaryName.map { "\(primaryName) - \($0)" } ?? primaryName }
+}
+struct AnalyticsChartPointUI: Identifiable, Hashable {
+    var start: Date
+    var label: String
+    var expenseMinor: Int64
+    var incomeMinor: Int64
+    var id: Date { start }
+}
+struct TagAnalysisUI: Identifiable, Hashable {
+    let id: String
+    var name: String
+    var amountMinor: Int64
+    var transactionCount: Int
+}
+enum AnalyticsGranularityUI: String, Hashable {
+    case day = "DAY"
+    case week = "WEEK"
+    case month = "MONTH"
 }
 struct CategoryShareUI: Identifiable, Hashable { let id: String; var name: String; var iconKey: String?; var amount: Int64 }
 struct CategoryBreakdownUI: Identifiable, Hashable {
@@ -194,6 +215,13 @@ enum SearchStatus: Equatable {
 }
 
 enum DateDetailStatus: Equatable {
+    case idle
+    case loading
+    case loaded
+    case failed(String)
+}
+
+enum AnalyticsStatus: Equatable {
     case idle
     case loading
     case loaded

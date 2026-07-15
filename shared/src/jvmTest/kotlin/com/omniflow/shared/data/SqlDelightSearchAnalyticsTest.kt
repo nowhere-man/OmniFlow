@@ -7,6 +7,7 @@ import com.omniflow.shared.domain.model.AnalyticsQuery
 import com.omniflow.shared.domain.model.DateRange
 import com.omniflow.shared.domain.model.LedgerScope
 import com.omniflow.shared.domain.model.Money
+import com.omniflow.shared.domain.model.TimeGranularity
 import com.omniflow.shared.domain.model.TransactionSearchQuery
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -57,9 +58,13 @@ class SqlDelightSearchAnalyticsTest {
         ).first().getOrThrow()
         assertEquals(Money(800), dashboard.summary.expenseTotal)
         assertEquals(Money(1_000), dashboard.summary.incomeTotal)
-        assertEquals(listOf("餐饮 - 餐厅"), dashboard.ranking.map { it.categoryDisplayName })
-        assertEquals(Money(800), dashboard.ranking.single().amount)
-        assertEquals("utensils", dashboard.ranking.single().iconKey)
+        assertEquals(Money.Zero, dashboard.previousSummary.expenseTotal)
+        assertEquals(listOf("expense", "expense-2"), dashboard.ranking.map { it.transactionId })
+        assertEquals(listOf(Money(500), Money(300)), dashboard.ranking.map { it.amount })
+        assertEquals("utensils", dashboard.ranking.first().iconKey)
+        assertEquals(listOf("工作", "无标签"), dashboard.tagAnalysis.map { it.tagName })
+        assertEquals(listOf(Money(500), Money(300)), dashboard.tagAnalysis.map { it.amount })
+        assertEquals(listOf(1, 1), dashboard.tagAnalysis.map { it.transactionCount })
         assertEquals(listOf("food"), dashboard.categoryBreakdowns.map { it.primaryCategoryId })
         assertEquals(listOf("restaurant"), dashboard.categoryBreakdowns.single().secondaryCategories.map { it.categoryId })
         assertEquals(Money(800), dashboard.yearStatement.months.first().expense)
@@ -67,7 +72,7 @@ class SqlDelightSearchAnalyticsTest {
     }
 
     @Test
-    fun analyticsGroupsCategoryPathsAndLimitsRankingToTenItems() = runBlocking {
+    fun analyticsRanksTransactionsAndLimitsRankingToTenItems() = runBlocking {
         val database = createJvmDatabase()
         database.ledgerQueries.insertLedger("ledger", "日常", null, 1, 1)
         database.accountQueries.insertAccount("account", "现金", "CASH", "banknote", null, null, 0, 1, 1, 1)
@@ -89,9 +94,10 @@ class SqlDelightSearchAnalyticsTest {
         ).first().getOrThrow()
 
         assertEquals(10, dashboard.ranking.size)
-        assertEquals("分类1 - 子类", dashboard.ranking.first().categoryDisplayName)
-        assertEquals(Money(1_300), dashboard.ranking.first().amount)
-        assertEquals("分类11", dashboard.ranking[1].categoryDisplayName)
+        assertEquals("expense-11", dashboard.ranking.first().transactionId)
+        assertEquals(Money(1_100), dashboard.ranking.first().amount)
+        assertEquals("分类11", dashboard.ranking.first().categoryDisplayName)
+        assertEquals(true, dashboard.ranking.any { it.transactionId == "secondary-2" && it.amount == Money(700) })
         val primary = dashboard.categoryBreakdowns.first { it.primaryCategoryId == "primary-1" }
         assertEquals(Money(1_400), primary.amount)
         assertEquals(listOf("子类"), primary.secondaryCategories.map { it.categoryName })
@@ -119,8 +125,8 @@ class SqlDelightSearchAnalyticsTest {
             ),
         ).first().getOrThrow()
 
-        assertEquals(listOf("餐饮 - 餐厅"), dashboard.ranking.map { it.categoryDisplayName })
-        assertEquals(Money(1_200), dashboard.ranking.single().amount)
+        assertEquals(listOf("expense-2", "expense-1"), dashboard.ranking.map { it.transactionId })
+        assertEquals(listOf(Money(700), Money(500)), dashboard.ranking.map { it.amount })
         assertEquals(listOf("餐饮"), dashboard.categoryBreakdowns.map { it.primaryCategoryName })
         assertEquals(Money(1_200), dashboard.categoryBreakdowns.single().amount)
         assertEquals(Money(1_200), dashboard.categoryBreakdowns.single().secondaryCategories.single().amount)
@@ -147,6 +153,36 @@ class SqlDelightSearchAnalyticsTest {
 
         assertEquals((1..now.monthNumber).toList(), dashboard.yearStatement.months.map { it.month })
         assertEquals(Money(500), dashboard.yearStatement.months.first().expense)
+    }
+
+    @Test
+    fun analyticsBuildsPreviousSummaryAndContinuousTrend() = runBlocking {
+        val database = createJvmDatabase()
+        database.ledgerQueries.insertLedger("ledger", "日常", null, 1, 1)
+        database.accountQueries.insertAccount("account", "现金", "CASH", "banknote", null, null, 0, 1, 1, 1)
+        database.categoryQueries.insertCategory("food", "ledger", null, "餐饮", "utensils", "EXPENSE", 1, 1)
+        val zone = TimeZone.currentSystemDefault()
+        val start = LocalDate(2025, 1, 1).atStartOfDayIn(zone)
+        val secondDay = LocalDate(2025, 1, 2).atStartOfDayIn(zone)
+        val thirdDay = LocalDate(2025, 1, 3).atStartOfDayIn(zone)
+        val end = LocalDate(2025, 1, 4).atStartOfDayIn(zone)
+        val previous = LocalDate(2024, 12, 31).atStartOfDayIn(zone)
+        insert(database, "previous", "food", 200, "EXPENSE", previous.toEpochMilliseconds(), "", excluded = false)
+        insert(database, "first", "food", 300, "EXPENSE", start.toEpochMilliseconds(), "", excluded = false)
+        insert(database, "third", "food", 500, "INCOME", thirdDay.toEpochMilliseconds(), "", excluded = false)
+
+        val dashboard = SqlDelightAnalyticsFacade(database).observeDashboard(
+            AnalyticsQuery(
+                scope = LedgerScope.All,
+                range = DateRange(start, end),
+                trendGranularity = TimeGranularity.DAY,
+            ),
+        ).first().getOrThrow()
+
+        assertEquals(Money(200), dashboard.previousSummary.expenseTotal)
+        assertEquals(listOf(start, secondDay, thirdDay), dashboard.trend.points.map { it.start })
+        assertEquals(listOf(Money(300), Money.Zero, Money.Zero), dashboard.trend.points.map { it.expense })
+        assertEquals(listOf(Money.Zero, Money.Zero, Money(500)), dashboard.trend.points.map { it.income })
     }
 
     private fun insert(

@@ -9,6 +9,8 @@ data class AnalyticsQuery(
     val range: DateRange,
     val rankingType: TransactionType = TransactionType.EXPENSE,
     val categoryShareType: TransactionType = TransactionType.EXPENSE,
+    val tagAnalysisType: TransactionType = TransactionType.EXPENSE,
+    val trendGranularity: TimeGranularity = TimeGranularity.DAY,
 )
 
 data class ChartPoint(
@@ -24,16 +26,33 @@ data class ChartData(
     val points: List<ChartPoint>,
 )
 
-data class CategoryRankingItem(
+data class TransactionRankingItem(
+    val transactionId: TransactionId,
+    val ledgerId: LedgerId,
+    val ledgerName: String,
+    val accountId: AccountId,
+    val accountName: String,
     val categoryId: CategoryId,
+    val categoryName: String,
+    val occurredAt: Instant,
     val primaryCategoryName: String,
     val secondaryCategoryName: String?,
     val iconKey: String?,
+    val note: String?,
+    val type: TransactionType,
     val amount: Money,
+    val source: TransactionSource?,
 ) {
     val categoryDisplayName: String
         get() = secondaryCategoryName?.let { "$primaryCategoryName - $it" } ?: primaryCategoryName
 }
+
+data class TagAnalysisItem(
+    val tagId: String,
+    val tagName: String,
+    val amount: Money,
+    val transactionCount: Int,
+)
 
 data class CategoryShareItem(
     val categoryId: CategoryId,
@@ -67,7 +86,10 @@ data class StatementTable(
 data class AnalyticsDashboardState(
     val query: AnalyticsQuery,
     val summary: TransactionSummary,
-    val ranking: List<CategoryRankingItem>,
+    val previousSummary: TransactionSummary,
+    val trend: ChartData,
+    val ranking: List<TransactionRankingItem>,
     val categoryBreakdowns: List<CategoryBreakdownItem>,
+    val tagAnalysis: List<TagAnalysisItem>,
     val yearStatement: StatementTable,
 )

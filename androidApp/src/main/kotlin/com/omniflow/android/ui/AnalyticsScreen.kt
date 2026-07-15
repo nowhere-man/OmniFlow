@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -78,6 +79,7 @@ private val AnalyticsColors = listOf(
 )
 
 private enum class BarLayout { DIVERGING, SIDE_BY_SIDE }
+private enum class StatementFilter { ALL, INCOME, EXPENSE }
 
 @Composable
 internal fun AnalyticsScreen(
@@ -89,6 +91,8 @@ internal fun AnalyticsScreen(
     onCustomRange: (DateRange) -> Unit,
     onRankingType: (TransactionType) -> Unit,
     onCategoryType: (TransactionType) -> Unit,
+    onTagType: (TransactionType) -> Unit,
+    onTransactionSelected: (String) -> Unit,
     onMonthSelected: (Int) -> Unit,
     onStatementTable: (Int) -> Unit,
     onDismissStatementTable: () -> Unit,
@@ -144,20 +148,125 @@ internal fun AnalyticsScreen(
             state.dashboard != null -> {
                 val dashboard = state.dashboard
                 val hasTransactions = dashboard.summary.expenseTotal != Money.Zero || dashboard.summary.incomeTotal != Money.Zero
+                item { SummaryComparisonCard(dashboard) }
+                item { TrendCard(dashboard) }
                 if (state.rangeMode == AnalyticsRangeMode.MONTH) {
                     item { YearBars(dashboard, state, onMonthSelected, onStatementTable) }
                 }
                 if (!hasTransactions) {
                     item { EmptyAnalytics(onAddTransaction) }
                 } else {
-                    item { RankingCard(dashboard, state.rankingType, onRankingType) }
+                    item { RankingCard(dashboard, state.rankingType, onRankingType, onTransactionSelected) }
                     item { CategoryCard(dashboard, state.categoryType, onCategoryType) }
+                    item { TagAnalysisCard(dashboard, state.tagType, onTagType) }
                 }
             }
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
-    state.statementTable?.let { StatementTableSheet(it, onDismissStatementTable) }
+    state.statementTable?.let { StatementTableSheet(it, onStatementTable, onDismissStatementTable) }
+}
+
+@Composable
+private fun SummaryComparisonCard(dashboard: AnalyticsDashboardState) {
+    AnalyticsCard {
+        AnalyticsHeader("收支汇总") {}
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            if (maxWidth < 420.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SummaryLine("总支出", dashboard.summary.expenseTotal, dashboard.previousSummary.expenseTotal, ExpenseColor)
+                    SummaryLine("总收入", dashboard.summary.incomeTotal, dashboard.previousSummary.incomeTotal, IncomeColor)
+                    SummaryLine("总结余", dashboard.summary.netIncome, dashboard.previousSummary.netIncome, MaterialTheme.colorScheme.primary)
+                }
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SummaryValue("总支出", dashboard.summary.expenseTotal, dashboard.previousSummary.expenseTotal, ExpenseColor, Modifier.weight(1f))
+                    SummaryValue("总收入", dashboard.summary.incomeTotal, dashboard.previousSummary.incomeTotal, IncomeColor, Modifier.weight(1f))
+                    SummaryValue("总结余", dashboard.summary.netIncome, dashboard.previousSummary.netIncome, MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryLine(title: String, current: Money, previous: Money, color: Color) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(current.asRmb(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = color)
+        Spacer(Modifier.width(12.dp))
+        Text(changeText(current, previous), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun SummaryValue(title: String, current: Money, previous: Money, color: Color, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(current.asRmb(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
+        Text(changeText(current, previous), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+private fun changeText(current: Money, previous: Money): String {
+    if (previous == Money.Zero) return if (current == Money.Zero) "较上期持平" else "上期无数据"
+    val percent = ((current.minor - previous.minor).toDouble() / kotlin.math.abs(previous.minor) * 100).toInt()
+    return when {
+        percent > 0 -> "较上期 +$percent%"
+        percent < 0 -> "较上期 $percent%"
+        else -> "较上期持平"
+    }
+}
+
+@Composable
+private fun TrendCard(dashboard: AnalyticsDashboardState) {
+    var selected by remember(dashboard.query.range, dashboard.query.trendGranularity) { mutableStateOf<Instant?>(null) }
+    val maximum = dashboard.trend.points.maxOfOrNull { max(it.income.minor, it.expense.minor) }?.coerceAtLeast(1) ?: 1
+    AnalyticsCard {
+        AnalyticsHeader("收支趋势") {}
+        if (dashboard.trend.points.isEmpty()) {
+            Text("当前范围暂无趋势数据", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                dashboard.trend.points.forEach { point ->
+                    val isSelected = selected == point.start
+                    Column(
+                        Modifier.width(48.dp)
+                            .clickable { selected = point.start }
+                            .semantics {
+                                contentDescription = "${point.label}，收入${point.income.asRmb()}，支出${point.expense.asRmb()}"
+                            },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Row(Modifier.height(96.dp), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.Bottom) {
+                            Bar(point.income.minor, maximum, IncomeColor)
+                            Bar(point.expense.minor, maximum, ExpenseColor)
+                        }
+                        Text(
+                            point.label.takeLast(if (dashboard.query.trendGranularity.name == "MONTH") 2 else 5),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                BarLegend(IncomeColor, "收入")
+                Spacer(Modifier.width(16.dp))
+                BarLegend(ExpenseColor, "支出")
+            }
+            selected?.let { selectedStart ->
+                dashboard.trend.points.firstOrNull { it.start == selectedStart }?.let { point ->
+                    Text("${point.label}：收入 ${point.income.asRmb()}，支出 ${point.expense.asRmb()}")
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -262,7 +371,12 @@ private fun BarLegend(color: Color, label: String) {
 }
 
 @Composable
-private fun RankingCard(dashboard: AnalyticsDashboardState, selected: TransactionType, onSelected: (TransactionType) -> Unit) {
+private fun RankingCard(
+    dashboard: AnalyticsDashboardState,
+    selected: TransactionType,
+    onSelected: (TransactionType) -> Unit,
+    onTransactionSelected: (String) -> Unit,
+) {
     var expanded by remember(dashboard.query.range, selected) { mutableStateOf(false) }
     AnalyticsCard {
         AnalyticsHeader("收支排行榜") { TypeSwitch(selected, onSelected) }
@@ -271,13 +385,28 @@ private fun RankingCard(dashboard: AnalyticsDashboardState, selected: Transactio
             Text(if (selected == TransactionType.EXPENSE) "暂无支出排行" else "暂无收入排行", color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             items.forEachIndexed { index, item ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.fillMaxWidth().clickable { onTransactionSelected(item.transactionId) }.padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text("${index + 1}.", Modifier.width(28.dp), fontWeight = FontWeight.Bold)
                     Surface(Modifier.size(42.dp), RoundedCornerShape(13.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)) {
                         Box(contentAlignment = Alignment.Center) { SvgIcon(categoryIconKey(item.iconKey), Modifier.size(25.dp), tint = MaterialTheme.colorScheme.primary) }
                     }
                     Spacer(Modifier.width(10.dp))
-                    Text(item.categoryDisplayName, Modifier.weight(1f), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Column(Modifier.weight(1f)) {
+                        Text(item.categoryDisplayName, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            listOfNotNull(
+                                item.note?.takeIf(String::isNotBlank),
+                                item.occurredAt.toLocalDateTime(ChinaTimeZone).let { "%02d-%02d %02d:%02d".format(it.monthNumber, it.dayOfMonth, it.hour, it.minute) },
+                            ).joinToString(" · "),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Text(item.amount.asRmb(), fontWeight = FontWeight.Bold, color = if (selected == TransactionType.EXPENSE) ExpenseColor else IncomeColor)
                 }
             }
@@ -285,6 +414,36 @@ private fun RankingCard(dashboard: AnalyticsDashboardState, selected: Transactio
         if (dashboard.ranking.size > 3) {
             TextButton(onClick = { expanded = !expanded }, modifier = Modifier.fillMaxWidth()) {
                 Text(if (expanded) "收起" else "展示更多")
+            }
+        }
+    }
+}
+
+@Composable
+private fun TagAnalysisCard(dashboard: AnalyticsDashboardState, selected: TransactionType, onSelected: (TransactionType) -> Unit) {
+    val total = if (selected == TransactionType.EXPENSE) dashboard.summary.expenseTotal else dashboard.summary.incomeTotal
+    AnalyticsCard {
+        AnalyticsHeader("记账标签分析") { TypeSwitch(selected, onSelected) }
+        if (dashboard.tagAnalysis.isEmpty()) {
+            Text("当前范围暂无标签数据", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            dashboard.tagAnalysis.forEach { item ->
+                val fraction = if (total == Money.Zero) 0f else item.amount.minor.toFloat() / total.minor
+                Column(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(item.tagName, Modifier.weight(1f), fontWeight = FontWeight.Medium)
+                        Text("${item.transactionCount} 笔", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(12.dp))
+                        Text(item.amount.asRmb(), fontWeight = FontWeight.SemiBold)
+                    }
+                    LinearProgressIndicator(
+                        progress = { fraction.coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth().height(7.dp),
+                        color = MaterialTheme.colorScheme.tertiary,
+                        trackColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        strokeCap = StrokeCap.Round,
+                    )
+                }
             }
         }
     }
@@ -442,13 +601,44 @@ private fun EmptyAnalytics(onAdd: () -> Unit) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun StatementTableSheet(table: StatementTable, onDismiss: () -> Unit) {
+private fun StatementTableSheet(table: StatementTable, onYear: (Int) -> Unit, onDismiss: () -> Unit) {
+    var filter by remember { mutableStateOf(StatementFilter.ALL) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { Text("${table.year} 年账单", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
-            item { StatementRow("全年", table.total.incomeTotal, table.total.expenseTotal) }
+            item {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { onYear(table.year - 1) }) { Icon(Icons.Default.ArrowBackIosNew, "上一年") }
+                    Text("${table.year} 年账单", Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    IconButton(onClick = { onYear(table.year + 1) }) { Icon(Icons.AutoMirrored.Filled.ArrowForwardIos, "下一年") }
+                }
+            }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatementFilter.entries.forEach { option ->
+                        FilterChip(
+                            selected = filter == option,
+                            onClick = { filter = option },
+                            label = {
+                                Text(
+                                    when (option) {
+                                        StatementFilter.ALL -> "全部"
+                                        StatementFilter.INCOME -> "收入"
+                                        StatementFilter.EXPENSE -> "支出"
+                                    },
+                                    Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Center,
+                                )
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+            item { StatementChart(table.months, filter) }
+            item { StatementHeader(filter) }
+            item { StatementRow("全年", table.total.incomeTotal, table.total.expenseTotal, filter, true) }
             items(table.months) { month ->
-                StatementRow("${month.month.toString().padStart(2, '0')}月", month.income, month.expense)
+                StatementRow("${month.month.toString().padStart(2, '0')}月", month.income, month.expense, filter)
             }
             item { Spacer(Modifier.height(24.dp)) }
         }
@@ -456,11 +646,63 @@ private fun StatementTableSheet(table: StatementTable, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun StatementRow(label: String, income: Money, expense: Money) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(label, Modifier.width(46.dp), fontWeight = FontWeight.SemiBold)
-        Text("收入 ${income.asRmb()}", Modifier.weight(1f), color = IncomeColor)
-        Text("支出 ${expense.asRmb()}", Modifier.weight(1f), color = ExpenseColor)
+private fun StatementChart(months: List<StatementMonth>, filter: StatementFilter) {
+    val maximum = months.maxOfOrNull { month ->
+        when (filter) {
+            StatementFilter.ALL -> max(month.income.minor, month.expense.minor)
+            StatementFilter.INCOME -> month.income.minor
+            StatementFilter.EXPENSE -> month.expense.minor
+        }
+    }?.coerceAtLeast(1) ?: 1
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        months.forEach { month ->
+            Column(
+                Modifier.width(44.dp).semantics {
+                    contentDescription = "${month.month}月，收入${month.income.asRmb()}，支出${month.expense.asRmb()}，结余${month.netIncome.asRmb()}"
+                },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Row(Modifier.height(96.dp), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.Bottom) {
+                    if (filter != StatementFilter.EXPENSE) Bar(month.income.minor, maximum, IncomeColor)
+                    if (filter != StatementFilter.INCOME) Bar(month.expense.minor, maximum, ExpenseColor)
+                }
+                Text("${month.month}月", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatementHeader(filter: StatementFilter) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("月份", Modifier.width(46.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+        if (filter != StatementFilter.EXPENSE) Text("收入", Modifier.weight(1f), textAlign = TextAlign.End, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+        if (filter != StatementFilter.INCOME) Text("支出", Modifier.weight(1f), textAlign = TextAlign.End, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+        Text("结余", Modifier.weight(1f), textAlign = TextAlign.End, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun StatementRow(label: String, income: Money, expense: Money, filter: StatementFilter, emphasized: Boolean = false) {
+    val net = income - expense
+    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(label, Modifier.width(46.dp), fontWeight = if (emphasized) FontWeight.Bold else FontWeight.SemiBold)
+        if (filter != StatementFilter.EXPENSE) {
+            Text(income.asRmb(), Modifier.weight(1f), textAlign = TextAlign.End, color = IncomeColor, fontWeight = if (emphasized) FontWeight.Bold else FontWeight.Normal)
+        }
+        if (filter != StatementFilter.INCOME) {
+            Text(expense.asRmb(), Modifier.weight(1f), textAlign = TextAlign.End, color = ExpenseColor, fontWeight = if (emphasized) FontWeight.Bold else FontWeight.Normal)
+        }
+        Text(
+            net.asRmb(),
+            Modifier.weight(1f),
+            textAlign = TextAlign.End,
+            color = if (net.minor < 0) ExpenseColor else IncomeColor,
+            fontWeight = if (emphasized) FontWeight.Bold else FontWeight.Normal,
+        )
     }
 }
 

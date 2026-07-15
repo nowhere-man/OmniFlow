@@ -255,6 +255,8 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
                     onCustomRange = viewModel::setAnalyticsCustomRange,
                     onRankingType = viewModel::setRankingType,
                     onCategoryType = viewModel::setCategoryType,
+                    onTagType = viewModel::setTagType,
+                    onTransactionSelected = viewModel::showTransactionRecordDetail,
                     onMonthSelected = viewModel::selectAnalyticsMonth,
                     onStatementTable = viewModel::loadStatementTable,
                     onDismissStatementTable = viewModel::dismissStatementTable,

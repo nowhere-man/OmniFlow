@@ -142,6 +142,7 @@ FROM transaction_tag
 JOIN transaction_record ON transaction_record.id = transaction_tag.transaction_id
 JOIN tag ON tag.id = transaction_tag.tag_id
 WHERE transaction_record.deleted_at IS NULL
+  AND tag.deleted_at IS NULL
   AND transaction_record.occurred_at >= :start_inclusive
   AND transaction_record.occurred_at < :end_exclusive
   AND (:ledger_filter IS NULL OR transaction_record.ledger_id = :ledger_filter);
