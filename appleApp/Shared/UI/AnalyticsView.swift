@@ -60,7 +60,7 @@ struct AnalyticsView: View {
                 get: { store.selectedDetailRange != nil },
                 set: { if !$0 { store.dismissDateDetail() } }
             ),
-            onDismiss: store.presentPendingTransactionDetail
+            onDismiss: { store.presentPendingDateDetailDestination() }
         ) {
             #if os(macOS)
             DateTransactionDetailView().environmentObject(store).frame(minWidth: 420, minHeight: 520)

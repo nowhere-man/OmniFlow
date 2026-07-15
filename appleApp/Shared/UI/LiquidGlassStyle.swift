@@ -126,7 +126,7 @@ extension View {
     @ViewBuilder
     func iOSLiquidGlassIconControl(size: CGFloat = 38, tint: Color? = nil) -> some View {
         #if os(iOS)
-        frame(width: size, height: size)
+        frame(width: max(size, 44), height: max(size, 44))
             .contentShape(Circle())
             .liquidGlassCircle(interactive: true, tint: tint)
         #else
@@ -146,7 +146,11 @@ extension View {
     @ViewBuilder
     func iOSPlainButtonStyle() -> some View {
         #if os(iOS)
-        buttonStyle(.plain)
+        if #available(iOS 26.0, *) {
+            buttonStyle(.plain)
+        } else {
+            buttonStyle(LegacyInteractiveButtonStyle())
+        }
         #else
         self
         #endif
@@ -190,7 +194,7 @@ struct SelectablePillButtonStyle: ButtonStyle {
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(selected ? selectedForeground : Color.primary)
             .padding(.horizontal, 12)
-            .frame(minHeight: 34)
+            .frame(minHeight: 44)
     }
 
     private func legacyLabel(_ configuration: Configuration) -> some View {
@@ -199,6 +203,12 @@ struct SelectablePillButtonStyle: ButtonStyle {
                 selected ? themeColor.opacity(configuration.isPressed ? 0.78 : 1) : Color.secondary.opacity(configuration.isPressed ? 0.16 : 0.09),
                 in: Capsule()
             )
+    }
+}
+
+private struct LegacyInteractiveButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.opacity(configuration.isPressed ? 0.68 : 1)
     }
 }
 

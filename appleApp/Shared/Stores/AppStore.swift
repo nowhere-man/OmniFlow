@@ -27,6 +27,7 @@ final class AppStore: ObservableObject {
     @Published var dateDetailTransactions: [TransactionUI] = []
     @Published var dateDetailExpenseMinor: Int64 = 0
     @Published var dateDetailIncomeMinor: Int64 = 0
+    @Published var dateDetailStatus = DateDetailStatus.idle
     @Published var expenseMinor: Int64 = 0
     @Published var incomeMinor: Int64 = 0
     @Published var loading = true
@@ -84,8 +85,11 @@ final class AppStore: ObservableObject {
     @Published var syncError: String?
     private var analyticsObservation: (start: Date, end: Date, ledgerID: String?)?
     private var pendingTransactionDetail: TransactionUI?
+    private var pendingDateDetailDraft: (date: Date, ledgerID: String?)?
     private var searchDebounceTask: Task<Void, Never>?
     private var searchGeneration = 0
+    private var dateDetailGeneration = 0
+    private var transactionTagLoadGeneration = 0
     private var importSessionGeneration = 0
     private var pendingImportItemEdits: [String: ImportItemUI] = [:]
     private var pendingImportItemOrder: [String] = []
@@ -302,7 +306,18 @@ final class AppStore: ObservableObject {
         observeDateDetails()
     }
 
+    func selectDateDetailLedger(_ id: String?) {
+        guard dateDetailLedgerID != id else { return }
+        dateDetailLedgerID = id
+        observeDateDetails()
+    }
+
+    func retryDateDetails() {
+        observeDateDetails()
+    }
+
     func dismissDateDetail() {
+        dateDetailGeneration += 1
         #if canImport(OmniFlowShared)
         dateDetailSubscription?.cancel()
         #endif
@@ -311,6 +326,7 @@ final class AppStore: ObservableObject {
         dateDetailTransactions = []
         dateDetailExpenseMinor = 0
         dateDetailIncomeMinor = 0
+        dateDetailStatus = .idle
     }
 
     func transitionFromDateDetail(to transaction: TransactionUI) {
@@ -318,10 +334,20 @@ final class AppStore: ObservableObject {
         dismissDateDetail()
     }
 
-    func presentPendingTransactionDetail() {
-        guard let pendingTransactionDetail else { return }
-        self.pendingTransactionDetail = nil
-        showTransactionDetail(pendingTransactionDetail)
+    func transitionFromDateDetailToNewTransaction() {
+        guard let range = selectedDetailRange else { return }
+        pendingDateDetailDraft = (range.start, dateDetailLedgerID)
+        dismissDateDetail()
+    }
+
+    func presentPendingDateDetailDestination() {
+        if let pendingTransactionDetail {
+            self.pendingTransactionDetail = nil
+            showTransactionDetail(pendingTransactionDetail)
+        } else if let pendingDateDetailDraft {
+            self.pendingDateDetailDraft = nil
+            startNewTransaction(date: pendingDateDetailDraft.date, ledgerID: pendingDateDetailDraft.ledgerID)
+        }
     }
 
     var hasSearchFilters: Bool {
@@ -554,11 +580,14 @@ final class AppStore: ObservableObject {
         draftTransactionDate = nil
         draftTransactionLedgerID = transaction.ledgerID
         transactionDraftRevision = UUID()
+        transactionTagLoadGeneration += 1
+        let tagGeneration = transactionTagLoadGeneration
         selectResourceLedger(transaction.ledgerID)
         #if canImport(OmniFlowShared)
         bridge.loadTransaction(id: transaction.id) { [weak self] value, message in
             Task { @MainActor in
                 if let message { self?.error = message }
+                guard self?.transactionTagLoadGeneration == tagGeneration else { return }
                 self?.editingTagIDs = Set(value?.tagIds ?? [])
             }
         }
@@ -568,6 +597,11 @@ final class AppStore: ObservableObject {
     func editTransaction(_ transaction: TransactionUI) {
         prepareTransactionEdit(transaction)
         destination = .transaction
+    }
+
+    func clearTransactionTagsForLedgerChange() {
+        transactionTagLoadGeneration += 1
+        editingTagIDs = []
     }
 
     func deleteTransaction(_ id: String, completion: @escaping (String?) -> Void) {
@@ -1272,6 +1306,12 @@ final class AppStore: ObservableObject {
 
     private func observeDateDetails() {
         guard let range = selectedDetailRange else { return }
+        dateDetailGeneration += 1
+        let generation = dateDetailGeneration
+        dateDetailStatus = .loading
+        dateDetailTransactions = []
+        dateDetailExpenseMinor = 0
+        dateDetailIncomeMinor = 0
         dateDetailSubscription?.cancel()
         dateDetailSubscription = bridge.watchTransactionDetails(
             ledgerId: dateDetailLedgerID,
@@ -1280,10 +1320,15 @@ final class AppStore: ObservableObject {
             typeName: dateDetailType?.rawValue
         ) { [weak self] value, message in
             Task { @MainActor in
-                if let message { self?.error = message }
+                guard self?.dateDetailGeneration == generation else { return }
+                if let message {
+                    self?.dateDetailStatus = .failed(message)
+                    return
+                }
                 self?.dateDetailExpenseMinor = value?.summary.expenseTotal ?? 0
                 self?.dateDetailIncomeMinor = value?.summary.incomeTotal ?? 0
                 self?.dateDetailTransactions = value?.items.map { Self.transaction($0) } ?? []
+                self?.dateDetailStatus = .loaded
             }
         }
     }
@@ -1316,7 +1361,7 @@ final class AppStore: ObservableObject {
     #else
     private func observeHome() {}
     private func observeCategories() {}
-    private func observeDateDetails() {}
+    private func observeDateDetails() { dateDetailStatus = .failed("共享 Framework 尚未构建") }
     #endif
 
     private func clearImportEditQueue() {

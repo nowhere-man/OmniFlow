@@ -193,6 +193,13 @@ enum SearchStatus: Equatable {
     case failed(String)
 }
 
+enum DateDetailStatus: Equatable {
+    case idle
+    case loading
+    case loaded
+    case failed(String)
+}
+
 struct StatementMonthUI: Identifiable, Hashable {
     var month: Int
     var expenseMinor: Int64

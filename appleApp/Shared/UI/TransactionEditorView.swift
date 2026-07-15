@@ -27,7 +27,10 @@ struct TransactionEditorView: View {
             .onAppear(perform: loadDraft)
             .onChange(of: store.transactionDraftRevision) { _ in loadDraft() }
             .onChange(of: ledgerID) { value in
-                if store.editingTransaction?.ledgerID != value { categoryID = "" }
+                if store.resourceLedgerID != value {
+                    categoryID = ""
+                    store.clearTransactionTagsForLedgerChange()
+                }
                 store.selectResourceLedger(value.isEmpty ? nil : value)
             }
             .onChange(of: type) { value in
@@ -79,7 +82,6 @@ struct TransactionEditorView: View {
                 categories: store.categories,
                 type: type,
                 selectedID: $categoryID,
-                onReordered: { store.reorderPrimaryCategories(type: type, orderedIDs: $0) },
                 onAddSecondary: { showingSecondaryEditor = true }
             )
             TransactionTagPicker(tags: store.tags, selectedIDs: Binding(
@@ -94,7 +96,7 @@ struct TransactionEditorView: View {
                     .accessibilityLabel("交易时间")
             }
             .padding(.horizontal, 12)
-            .frame(minHeight: 40)
+            .frame(minHeight: 44)
             .liquidGlassSurface(cornerRadius: 14)
             HStack(spacing: 8) {
                 Button { showingDatePicker.toggle() } label: {
@@ -104,6 +106,8 @@ struct TransactionEditorView: View {
                     )
                 }
                 .buttonStyle(.borderless)
+                .frame(minHeight: 44)
+                .accessibilityLabel(Calendar.current.isDateInToday(date) ? "交易日期：今天" : "交易日期：\(date.formatted(date: .abbreviated, time: .omitted))")
                 .popover(isPresented: $showingDatePicker) {
                     DatePicker("日期", selection: $date, displayedComponents: .date)
                         .datePickerStyle(.graphical)
@@ -111,6 +115,10 @@ struct TransactionEditorView: View {
                         .platformPopoverAdaptation()
                 }
             }
+            Toggle("不计入收支", isOn: $excluded)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 44)
+                .liquidGlassSurface(cornerRadius: 14)
         }
     }
 
@@ -212,43 +220,73 @@ private struct TransactionTopBar: View {
     @Binding var ledgerID: String
     @Binding var accountID: String
 
+    @ViewBuilder
     var body: some View {
-        HStack(spacing: 12) {
-            Menu {
-                ForEach(store.ledgers) { ledger in Button(ledger.name) { ledgerID = ledger.id } }
-            } label: {
-                Image(systemName: "books.vertical")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(themeColor)
-                    .frame(width: 44, height: 44)
-                    .liquidGlassCircle(interactive: true)
+        #if os(iOS)
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                ledgerMenu
+                accountMenu
             }
-            .accessibilityLabel(store.ledgers.first { $0.id == ledgerID }?.name ?? "选择账本")
-
             ThemeSegmentedControl(selection: $type, options: EntryType.allCases, title: \.label)
-            .frame(maxWidth: 220)
-
-            Menu {
-                ForEach(store.accounts) { account in Button(account.name) { accountID = account.id } }
-            } label: {
-                Group {
-                    if let account = store.accounts.first(where: { $0.id == accountID }) {
-                        SVGIconView(
-                            key: account.iconKey,
-                            size: 24,
-                            tint: (AppThemeColor(rawValue: store.themeColor) ?? .lavender).cssColor(for: colorScheme)
-                        )
-                    } else {
-                        Image(systemName: "wallet.pass").font(.title3.weight(.semibold))
-                    }
-                }
-                .frame(width: 44, height: 44)
-                .liquidGlassCircle(interactive: true)
-            }
-            .accessibilityLabel(store.accounts.first { $0.id == accountID }?.name ?? "选择账户")
+        }
+        #else
+        HStack(spacing: 12) {
+            ledgerMenu
+            ThemeSegmentedControl(selection: $type, options: EntryType.allCases, title: \.label)
+                .frame(maxWidth: 220)
+            accountMenu
         }
         .frame(maxWidth: .infinity)
+        #endif
     }
+
+    private var ledgerMenu: some View {
+        Menu {
+            ForEach(store.ledgers) { ledger in Button(ledger.name) { ledgerID = ledger.id } }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "books.vertical")
+                    .font(.headline)
+                    .foregroundStyle(themeColor)
+                Text(selectedLedgerName).lineLimit(1)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.up.chevron.down").font(.caption2).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .liquidGlassSurface(cornerRadius: 14, interactive: true)
+        }
+        .accessibilityLabel("账本：\(selectedLedgerName)")
+    }
+
+    private var accountMenu: some View {
+        Menu {
+            ForEach(store.accounts) { account in Button(account.name) { accountID = account.id } }
+        } label: {
+            HStack(spacing: 8) {
+                if let account = selectedAccount {
+                    SVGIconView(
+                        key: account.iconKey,
+                        size: 22,
+                        tint: (AppThemeColor(rawValue: store.themeColor) ?? .lavender).cssColor(for: colorScheme)
+                    )
+                } else {
+                    Image(systemName: "wallet.pass").font(.headline)
+                }
+                Text(selectedAccount?.name ?? "选择账户").lineLimit(1)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.up.chevron.down").font(.caption2).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .liquidGlassSurface(cornerRadius: 14, interactive: true)
+        }
+        .accessibilityLabel("账户：\(selectedAccount?.name ?? "未选择")")
+    }
+
+    private var selectedLedgerName: String { store.ledgers.first { $0.id == ledgerID }?.name ?? "选择账本" }
+    private var selectedAccount: AccountUI? { store.accounts.first { $0.id == accountID } }
 }
 
 private struct TransactionCategoryPicker: View {
@@ -257,10 +295,7 @@ private struct TransactionCategoryPicker: View {
     let categories: [CategoryUI]
     let type: EntryType
     @Binding var selectedID: String
-    let onReordered: ([String]) -> Void
     let onAddSecondary: () -> Void
-    @State private var orderedPrimaryCategories: [CategoryUI] = []
-    @State private var draggedCategory: CategoryUI?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -268,11 +303,11 @@ private struct TransactionCategoryPicker: View {
                 Text("选择账本后加载分类").font(.subheadline).foregroundStyle(.secondary)
             } else {
                 #if os(iOS)
-                ScrollView(.vertical, showsIndicators: false) {
-                    LazyVGrid(columns: columns, spacing: 6) { categoryTiles }
-                        .padding(.vertical, 2)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHGrid(rows: rows, spacing: 6) { categoryTiles }
+                        .padding(.horizontal, 2)
                 }
-                .frame(height: 158)
+                .frame(height: 156)
                 #else
                 LazyVGrid(columns: columns, spacing: 6) { categoryTiles }
                 #endif
@@ -305,8 +340,6 @@ private struct TransactionCategoryPicker: View {
                 .liquidGlassSurface(cornerRadius: 16)
             }
         }
-        .onAppear { orderedPrimaryCategories = primaryCategories }
-        .onChange(of: primaryCategories) { orderedPrimaryCategories = $0 }
     }
 
     private var primaryCategories: [CategoryUI] { categories.filter { $0.type == type && $0.parentID == nil } }
@@ -324,50 +357,18 @@ private struct TransactionCategoryPicker: View {
         return [GridItem(.adaptive(minimum: 76), spacing: 6)]
         #endif
     }
+    private var rows: [GridItem] { Array(repeating: GridItem(.fixed(75), spacing: 6), count: 2) }
 
     @ViewBuilder private var categoryTiles: some View {
-        ForEach(orderedPrimaryCategories) { category in
+        ForEach(primaryCategories) { category in
             CategoryTile(
                 category: category,
-                selected: primaryID == category.id,
-                dragging: draggedCategory?.id == category.id
+                selected: primaryID == category.id
             ) { selectedID = category.id }
-                .onDrag {
-                    draggedCategory = category
-                    return NSItemProvider(object: category.id as NSString)
-                }
-                .onDrop(
-                    of: ["public.text"],
-                    delegate: CategoryDropDelegate(
-                        target: category,
-                        ordered: $orderedPrimaryCategories,
-                        dragged: $draggedCategory,
-                        onReordered: onReordered
-                    )
-                )
+                #if os(iOS)
+                .frame(width: 82)
+                #endif
         }
-    }
-}
-
-private struct CategoryDropDelegate: DropDelegate {
-    let target: CategoryUI
-    @Binding var ordered: [CategoryUI]
-    @Binding var dragged: CategoryUI?
-    let onReordered: ([String]) -> Void
-
-    func dropEntered(info: DropInfo) {
-        guard let dragged, dragged != target,
-              let from = ordered.firstIndex(of: dragged),
-              let to = ordered.firstIndex(of: target) else { return }
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-            ordered.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
-        }
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        dragged = nil
-        onReordered(ordered.map(\.id))
-        return true
     }
 }
 
@@ -378,7 +379,6 @@ private struct CategoryTile: View {
     @Environment(\.appThemeSelectionForeground) private var selectedForeground
     let category: CategoryUI
     let selected: Bool
-    let dragging: Bool
     let action: () -> Void
 
     var body: some View {
@@ -399,9 +399,6 @@ private struct CategoryTile: View {
         }
         .buttonStyle(.plain)
         .liquidGlassSurface(cornerRadius: 14, interactive: true, tint: selected ? themeColor : nil)
-        .scaleEffect(dragging ? 1.06 : 1)
-        .shadow(color: .black.opacity(dragging ? 0.18 : 0), radius: 10, y: 5)
-        .animation(.spring(response: 0.24, dampingFraction: 0.82), value: dragging)
         .accessibilityLabel(category.name)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
@@ -530,7 +527,7 @@ private struct TransactionTagPicker: View {
             }
         }
         .padding(.horizontal, 10)
-        .frame(minHeight: 38)
+        .frame(minHeight: 44)
         .liquidGlassSurface(cornerRadius: 13)
     }
 }

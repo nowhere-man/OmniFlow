@@ -6,24 +6,10 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                HStack {
-                    ledgerPicker
-                    Spacer()
-                    monthHeader
-                    Spacer()
-                    #if os(iOS)
-                    Button { store.destination = .search } label: {
-                        Image(systemName: "magnifyingglass")
-                            .iOSLiquidGlassIconControl()
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("搜索")
-                    #endif
-                }
-                HStack(spacing: 10) {
-                    summaryButton("总支出", store.expenseMinor, .expense)
-                    summaryButton("总收入", store.incomeMinor, .income)
-                    summaryButton("总结余", store.incomeMinor - store.expenseMinor, nil)
+                homeHeader
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) { summaryButtons }
+                    VStack(spacing: 10) { summaryButtons }
                 }
                 HStack { Spacer(); CalendarFilterPicker() }
                 HomeCalendarView()
@@ -32,7 +18,9 @@ struct HomeView: View {
                 HStack {
                     Text("明细").font(.title2.bold())
                     Spacer()
-                    Button(action: store.toggleTransactionDisplayMode) {
+                    Button {
+                        store.toggleTransactionDisplayMode()
+                    } label: {
                         Image(systemName: store.transactionDisplayMode == .list ? "square.grid.2x2" : "list.bullet")
                             .iOSLiquidGlassIconControl()
                     }
@@ -67,7 +55,7 @@ struct HomeView: View {
                 get: { store.selectedDetailRange != nil },
                 set: { if !$0 { store.dismissDateDetail() } }
             ),
-            onDismiss: store.presentPendingTransactionDetail
+            onDismiss: { store.presentPendingDateDetailDestination() }
         ) {
             #if os(macOS)
             DateTransactionDetailView()
@@ -86,7 +74,53 @@ struct HomeView: View {
         } label: {
             SummaryCard(title: title, value: amount.rmb)
         }
-        .buttonStyle(.plain)
+        .iOSPlainButtonStyle()
+    }
+
+    @ViewBuilder
+    private var summaryButtons: some View {
+        summaryButton("总支出", store.expenseMinor, .expense)
+        summaryButton("总收入", store.incomeMinor, .income)
+        summaryButton("总结余", store.incomeMinor - store.expenseMinor, nil)
+    }
+
+    @ViewBuilder
+    private var homeHeader: some View {
+        #if os(iOS)
+        ViewThatFits(in: .horizontal) {
+            HStack {
+                ledgerPicker
+                Spacer()
+                monthHeader
+                Spacer()
+                searchButton
+            }
+            VStack(spacing: 8) {
+                HStack {
+                    ledgerPicker
+                    Spacer()
+                    searchButton
+                }
+                monthHeader
+            }
+        }
+        #else
+        HStack {
+            ledgerPicker
+            Spacer()
+            monthHeader
+            Spacer()
+        }
+        #endif
+    }
+
+    private var searchButton: some View {
+        Button { store.destination = .search } label: {
+            Image(systemName: "magnifyingglass")
+                .iOSLiquidGlassIconControl()
+        }
+        .iOSPlainButtonStyle()
+        .accessibilityLabel("搜索")
     }
 
     private var monthRange: DateInterval {
@@ -139,6 +173,7 @@ private struct HomeCalendarView: View {
     @Environment(\.appThemeColor) private var themeColor
     @Environment(\.appThemeSelectionForeground) private var selectedForeground
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
+    private var calendar: Calendar { .current }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -178,20 +213,24 @@ private struct HomeCalendarView: View {
         }
     }
 
-    private var interval: DateInterval { Calendar.current.dateInterval(of: .month, for: store.selectedMonth) ?? DateInterval(start: store.selectedMonth, duration: 30 * 86_400) }
-    private var dayCount: Int { Calendar.current.range(of: .day, in: .month, for: interval.start)?.count ?? 30 }
+    private var interval: DateInterval { calendar.dateInterval(of: .month, for: store.selectedMonth) ?? DateInterval(start: store.selectedMonth, duration: 30 * 86_400) }
+    private var dayCount: Int { calendar.range(of: .day, in: .month, for: interval.start)?.count ?? 30 }
     private var weekdayLabels: [WeekdayLabel] {
-        Calendar.current.veryShortStandaloneWeekdaySymbols.enumerated().map {
-            WeekdayLabel(id: "weekday-\($0.offset)", symbol: $0.element)
+        let symbols = calendar.veryShortStandaloneWeekdaySymbols
+        guard !symbols.isEmpty else { return [] }
+        let start = (calendar.firstWeekday - 1) % symbols.count
+        return symbols.indices.map { offset in
+            let index = (start + offset) % symbols.count
+            return WeekdayLabel(id: "weekday-\(index + 1)", symbol: symbols[index])
         }
     }
     private var leadingBlankIDs: [String] { (0..<leadingBlankCount).map { "blank-\($0)" } }
     private var leadingBlankCount: Int {
-        let weekday = Calendar.current.component(.weekday, from: interval.start)
-        return (weekday - Calendar.current.firstWeekday + 7) % 7
+        let weekday = calendar.component(.weekday, from: interval.start)
+        return (weekday - calendar.firstWeekday + 7) % 7
     }
-    private var summaries: [Date: CalendarDayUI] { Dictionary(uniqueKeysWithValues: store.calendarDays.map { (Calendar.current.startOfDay(for: $0.date), $0) }) }
-    private func date(_ day: Int) -> Date { Calendar.current.date(byAdding: .day, value: day - 1, to: interval.start) ?? interval.start }
+    private var summaries: [Date: CalendarDayUI] { Dictionary(uniqueKeysWithValues: store.calendarDays.map { (calendar.startOfDay(for: $0.date), $0) }) }
+    private func date(_ day: Int) -> Date { calendar.date(byAdding: .day, value: day - 1, to: interval.start) ?? interval.start }
 }
 
 private struct WeekdayLabel: Identifiable {
@@ -201,31 +240,13 @@ private struct WeekdayLabel: Identifiable {
 
 struct DateTransactionDetailView: View {
     @EnvironmentObject private var store: AppStore
-    @State private var displayMode: TransactionDisplayMode = .card
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 22) {
-                        if store.dateDetailType != .income {
-                            Text("支出 \(store.dateDetailExpenseMinor.rmb)").foregroundStyle(Color.expense)
-                        }
-                        if store.dateDetailType != .expense {
-                            Text("收入 \(store.dateDetailIncomeMinor.rmb)").foregroundStyle(Color.income)
-                        }
-                        Spacer()
-                        displayModeButton
-                    }
-                    .font(.subheadline.weight(.semibold))
-                    if store.dateDetailTransactions.isEmpty {
-                        EmptyStateView(title: "当前范围暂无明细", systemImage: "calendar", detail: "所选日期范围没有记录")
-                    } else {
-                        TransactionCollectionView(items: store.dateDetailTransactions, displayMode: displayMode) { item in
-                            store.transitionFromDateDetail(to: item)
-                        }
-                        .transactionCollectionContainer()
-                    }
+                    controls
+                    content
                 }
                 .padding()
             }
@@ -239,17 +260,103 @@ struct DateTransactionDetailView: View {
                         .minimumScaleFactor(0.7)
                 }
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭", action: store.dismissDateDetail)
+                    Button("关闭") { store.dismissDateDetail() }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button { store.transitionFromDateDetailToNewTransaction() } label: {
+                        Label("新增交易", systemImage: "plus")
+                    }
                 }
             }
             #else
             .navigationTitle(detailTitle)
             .toolbar {
-                Button("关闭", action: store.dismissDateDetail)
+                Button { store.transitionFromDateDetailToNewTransaction() } label: {
+                    Label("新增交易", systemImage: "plus")
+                }
+                Button("关闭") { store.dismissDateDetail() }
             }
             #endif
         }
     }
+
+    private var controls: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                ledgerPicker
+                Spacer(minLength: 8)
+                displayModeButton
+            }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 22) { summaryLabels }
+                VStack(alignment: .leading, spacing: 6) { summaryLabels }
+            }
+            .font(.subheadline.weight(.semibold))
+        }
+    }
+
+    @ViewBuilder
+    private var summaryLabels: some View {
+        if store.dateDetailType != .income {
+            Text("支出 \(store.dateDetailExpenseMinor.rmb) · \(expenseCount) 笔")
+                .foregroundStyle(Color.expense)
+        }
+        if store.dateDetailType != .expense {
+            Text("收入 \(store.dateDetailIncomeMinor.rmb) · \(incomeCount) 笔")
+                .foregroundStyle(Color.income)
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch store.dateDetailStatus {
+        case .idle, .loading:
+            ProgressView("正在加载明细")
+                .frame(maxWidth: .infinity, minHeight: 180)
+        case let .failed(message):
+            EmptyStateView(
+                title: "明细加载失败",
+                systemImage: "exclamationmark.triangle",
+                detail: message,
+                actionTitle: "重试",
+                action: { store.retryDateDetails() }
+            )
+        case .loaded where store.dateDetailTransactions.isEmpty:
+            EmptyStateView(
+                title: "当前范围暂无明细",
+                systemImage: "calendar",
+                detail: "所选日期范围没有记录",
+                actionTitle: "新增交易",
+                action: { store.transitionFromDateDetailToNewTransaction() }
+            )
+        case .loaded:
+            TransactionCollectionView(items: store.dateDetailTransactions, displayMode: store.transactionDisplayMode) { item in
+                store.transitionFromDateDetail(to: item)
+            }
+            .transactionCollectionContainer()
+        }
+    }
+
+    private var ledgerPicker: some View {
+        Menu {
+            Button("所有账本") { store.selectDateDetailLedger(nil) }
+            ForEach(store.ledgers) { ledger in
+                Button(ledger.name) { store.selectDateDetailLedger(ledger.id) }
+            }
+        } label: {
+            Label(selectedLedgerName, systemImage: "books.vertical")
+                .lineLimit(1)
+                .frame(minHeight: 44)
+        }
+        .accessibilityLabel("明细账本：\(selectedLedgerName)")
+    }
+
+    private var selectedLedgerName: String {
+        store.dateDetailLedgerID.flatMap { id in store.ledgers.first { $0.id == id }?.name } ?? "所有账本"
+    }
+
+    private var expenseCount: Int { store.dateDetailTransactions.lazy.filter { $0.type == .expense }.count }
+    private var incomeCount: Int { store.dateDetailTransactions.lazy.filter { $0.type == .income }.count }
 
     private var detailTitle: String {
         guard let range = store.selectedDetailRange else { return "日期明细" }
@@ -270,18 +377,18 @@ struct DateTransactionDetailView: View {
     private var displayModeButton: some View {
         #if os(iOS)
         Button {
-            displayMode = displayMode == .card ? .list : .card
+            store.toggleTransactionDisplayMode()
         } label: {
-            Image(systemName: displayMode == .list ? "square.grid.2x2" : "list.bullet")
-                .iOSLiquidGlassIconControl(size: 34)
+            Image(systemName: store.transactionDisplayMode == .list ? "square.grid.2x2" : "list.bullet")
+                .iOSLiquidGlassIconControl()
         }
-        .buttonStyle(.plain)
+        .iOSPlainButtonStyle()
         .accessibilityLabel("切换明细展示方式")
         #else
         Button {
-            displayMode = displayMode == .card ? .list : .card
+            store.toggleTransactionDisplayMode()
         } label: {
-            Image(systemName: displayMode == .list ? "square.grid.2x2" : "list.bullet")
+            Image(systemName: store.transactionDisplayMode == .list ? "square.grid.2x2" : "list.bullet")
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
