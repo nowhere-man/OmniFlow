@@ -16,6 +16,14 @@
       "tintColor": "75679D",
       "versions": [
         {
+          "version": "0.6.0",
+          "date": "2026-07-16",
+          "localizedDescription": "查看 GitHub Release 获取本次更新内容。",
+          "downloadURL": "https://github.com/nowhere-man/omni-flow/releases/download/v0.6.0/OmniFlow-iOS-arm64-v0.6.0-unsigned.ipa",
+          "size": 4007798,
+          "minOSVersion": "16.0"
+        },
+        {
           "version": "0.4.0",
           "date": "2026-07-13",
           "localizedDescription": "查看 GitHub Release 获取本次更新内容。",
