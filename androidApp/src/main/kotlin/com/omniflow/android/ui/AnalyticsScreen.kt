@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -103,7 +104,7 @@ internal fun AnalyticsScreen(
     val showCurrentRangeButton = state.rangeMode != AnalyticsRangeMode.CUSTOM &&
         (now < state.range.startInclusive || now >= state.range.endExclusive)
     LazyColumn(
-        modifier = modifier.fillMaxSize().padding(horizontal = 16.dp),
+        modifier = modifier.readableContentWidth().fillMaxHeight().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item { Spacer(Modifier.height(8.dp)); LedgerScopeMenu(state.scope, state.ledgers, onScope) }

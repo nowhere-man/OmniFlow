@@ -2,7 +2,6 @@ package com.omniflow.android.ui
 
 import android.Manifest
 import android.app.Activity
-import android.app.KeyguardManager
 import android.os.Build
 import android.os.SystemClock
 import android.widget.Toast
@@ -11,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material3.Card
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -56,21 +57,26 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.Modifier
@@ -81,6 +87,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import com.omniflow.shared.domain.model.CalendarDaySummary
 import com.omniflow.shared.domain.model.AppearanceMode
 import com.omniflow.shared.domain.model.CalendarTransactionFilter
@@ -105,28 +113,49 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import androidx.core.content.ContextCompat
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.fragment.app.FragmentActivity
+import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.ui.NavDisplay
 import com.omniflow.android.ReminderScheduler
 
-private enum class MainDestination(val label: String, val icon: ImageVector) {
-    HOME("首页", Icons.Default.Home),
-    ANALYTICS("统计", Icons.AutoMirrored.Filled.ShowChart),
-    ADD("记账", Icons.Default.Add),
-    SEARCH("搜索", Icons.Default.Search),
-    MORE("更多", Icons.Default.MoreHoriz),
+private enum class MainDestination(val route: OmniRoute, val label: String, val icon: ImageVector) {
+    HOME(OmniRoute.Home, "首页", Icons.Default.Home),
+    ANALYTICS(OmniRoute.Analytics, "统计", Icons.AutoMirrored.Filled.ShowChart),
+    ADD(OmniRoute.TransactionEditor, "记账", Icons.Default.Add),
+    SEARCH(OmniRoute.Search, "搜索", Icons.Default.Search),
+    MORE(OmniRoute.More, "更多", Icons.Default.MoreHoriz),
+}
+
+private fun androidx.navigation3.runtime.NavKey.toMainDestination(): MainDestination = when (this) {
+    OmniRoute.Home -> MainDestination.HOME
+    OmniRoute.Analytics -> MainDestination.ANALYTICS
+    OmniRoute.Search -> MainDestination.SEARCH
+    OmniRoute.More -> MainDestination.MORE
+    OmniRoute.TransactionEditor -> MainDestination.ADD
+    else -> error("Unknown route: $this")
 }
 
 @Composable
-fun OmniFlowApp(viewModel: OmniFlowViewModel) {
-    val homeState by viewModel.homeUiState.collectAsState()
-    val analyticsState by viewModel.analyticsUiState.collectAsState()
-    val rangeDetailState by viewModel.rangeDetailUiState.collectAsState()
-    val searchState by viewModel.searchUiState.collectAsState()
-    val transactionState by viewModel.transactionUiState.collectAsState()
-    val transactionRecordDetailState by viewModel.transactionRecordDetailUiState.collectAsState()
-    val moreState by viewModel.moreUiState.collectAsState()
-    var destination by rememberSaveable { mutableStateOf(MainDestination.HOME) }
+fun OmniFlowApp(viewModel: OmniFlowViewModel, initialTransactionId: String? = null) {
+    val homeState by viewModel.homeUiState.collectAsStateWithLifecycle()
+    val analyticsState by viewModel.analyticsUiState.collectAsStateWithLifecycle()
+    val rangeDetailState by viewModel.rangeDetailUiState.collectAsStateWithLifecycle()
+    val searchState by viewModel.searchUiState.collectAsStateWithLifecycle()
+    val transactionState by viewModel.transactionUiState.collectAsStateWithLifecycle()
+    val transactionRecordDetailState by viewModel.transactionRecordDetailUiState.collectAsStateWithLifecycle()
+    val moreState by viewModel.moreUiState.collectAsStateWithLifecycle()
+    val navigationState = rememberOmniNavigationState()
+    val destination = navigationState.currentRoute.toMainDestination()
     var moreStartPage by rememberSaveable { mutableStateOf(MorePage.HOME) }
+    var showDiscardDialog by remember { mutableStateOf(false) }
+    var notificationPermissionRequested by rememberSaveable { mutableStateOf(false) }
     var lastBackPressedAt by remember { mutableStateOf(0L) }
     val darkTheme = when (homeState.appearanceMode) {
         AppearanceMode.SYSTEM -> isSystemInDarkTheme()
@@ -136,27 +165,40 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
     val primaryColor = themePrimaryColor(moreState.preferences.themeColor, darkTheme)
     val primaryContainerColor = themePrimaryContainerColor(moreState.preferences.themeColor, darkTheme)
     val context = LocalContext.current
+    val view = LocalView.current
+    val dynamicColorEnabled = remember {
+        mutableStateOf(context.getSharedPreferences("android_ui", 0).getBoolean("dynamic_color", false))
+    }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     LaunchedEffect(moreState.reminders) {
         ReminderScheduler(context).sync(moreState.reminders)
-        if (moreState.reminders.isNotEmpty() && Build.VERSION.SDK_INT >= 33) {
-            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+    LaunchedEffect(initialTransactionId) {
+        initialTransactionId?.let { transactionId ->
+            navigationState.navigate(OmniRoute.Home)
+            viewModel.showTransactionRecordDetail(transactionId)
         }
     }
     LaunchedEffect(transactionState.completed) {
         if (transactionState.completed) {
-            destination = MainDestination.HOME
+            navigationState.goBack()
             viewModel.consumeTransactionCompletion()
         }
     }
-    BackHandler {
+    fun handleBack() {
         if (rangeDetailState.isVisible) {
             viewModel.dismissDate()
         } else if (transactionRecordDetailState.isVisible) {
             viewModel.dismissTransactionRecordDetail()
         } else if (destination == MainDestination.ADD) {
-            destination = MainDestination.HOME
-        } else {
+            val hasDraft = transactionState.editingId != null ||
+                transactionState.amountInput.isNotBlank() ||
+                transactionState.note.isNotBlank() ||
+                transactionState.categoryId != null ||
+                transactionState.selectedTagIds.isNotEmpty() ||
+                transactionState.isExcluded
+            if (hasDraft) showDiscardDialog = true else navigationState.goBack()
+        } else if (!navigationState.goBack()) {
             val now = SystemClock.elapsedRealtime()
             if (now - lastBackPressedAt <= 2_000L) {
                 (context as? Activity)?.finish()
@@ -168,59 +210,60 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
     }
 
     MaterialTheme(
-        colorScheme = if (darkTheme) {
-            darkColorScheme(
-                primary = primaryColor,
-                onPrimary = Color(0xFF111111),
-                primaryContainer = primaryContainerColor,
-                onPrimaryContainer = primaryColor,
-                secondary = primaryColor,
-                secondaryContainer = primaryContainerColor,
-                onSecondaryContainer = primaryColor,
-                surface = Color(0xFF141414),
-                surfaceVariant = Color(0xFF202020),
-                background = Color(0xFF101010),
-                onSurface = Color(0xFFF5F5F5),
-                onSurfaceVariant = Color(0xFFB9B9B9),
-                outline = Color(0xFF454545),
-            )
-        } else {
-            lightColorScheme(
-                primary = primaryColor,
-                onPrimary = Color.White,
-                primaryContainer = primaryContainerColor,
-                onPrimaryContainer = primaryColor,
-                secondary = primaryColor,
-                secondaryContainer = primaryContainerColor,
-                onSecondaryContainer = primaryColor,
-                surface = Color.White,
-                surfaceVariant = Color(0xFFF5F5F5),
-                background = Color.White,
-                onSurface = Color(0xFF171717),
-                onSurfaceVariant = Color(0xFF656565),
-                outline = Color(0xFFD2D2D2),
-            )
-        },
+        colorScheme = omniColorScheme(
+            moreState.preferences.themeColor,
+            darkTheme,
+            dynamicColorEnabled.value,
+            context,
+        ),
     ) {
+        SideEffect {
+            (context as? Activity)?.window?.let { window ->
+                val controller = WindowCompat.getInsetsController(window, view)
+                controller.isAppearanceLightStatusBars = !darkTheme
+                controller.isAppearanceLightNavigationBars = !darkTheme
+            }
+        }
         AppLockGate(moreState.preferences.appLockEnabled) {
+        BoxWithConstraints {
+        val useNavigationRail = maxWidth >= 600.dp && destination != MainDestination.ADD
         Scaffold(
             bottomBar = {
-                if (destination != MainDestination.ADD) {
+                if (destination != MainDestination.ADD && !useNavigationRail) {
                     PrimaryNavigation(
                         destination = destination,
                         onDestination = {
-                            destination = it
+                            navigationState.navigate(it.route)
                             if (it == MainDestination.MORE) moreStartPage = MorePage.HOME
                         },
                         onAdd = {
                             viewModel.startNewTransaction()
-                            destination = MainDestination.ADD
+                            navigationState.navigate(OmniRoute.TransactionEditor)
                         },
                     )
                 }
             },
         ) { padding ->
-            when (destination) {
+            Row(Modifier.fillMaxSize()) {
+                if (useNavigationRail) {
+                    PrimaryNavigationRail(
+                        destination = destination,
+                        onDestination = {
+                            navigationState.navigate(it.route)
+                            if (it == MainDestination.MORE) moreStartPage = MorePage.HOME
+                        },
+                        onAdd = {
+                            viewModel.startNewTransaction()
+                            navigationState.navigate(OmniRoute.TransactionEditor)
+                        },
+                    )
+                }
+                NavDisplay(
+                    backStack = navigationState.currentBackStack,
+                    onBack = ::handleBack,
+                    modifier = Modifier.weight(1f),
+                    entryProvider = { key -> NavEntry(key) {
+            when (key.toMainDestination()) {
                 MainDestination.HOME -> HomeScreen(
                     state = homeState,
                     onPreviousMonth = viewModel::previousMonth,
@@ -234,7 +277,7 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
                     onToggleDisplayMode = viewModel::toggleDisplayMode,
                     onAdd = { date, ledgerId ->
                         viewModel.startNewTransaction(date, ledgerId)
-                        destination = MainDestination.ADD
+                        navigationState.navigate(OmniRoute.TransactionEditor)
                     },
                     onEdit = { transactionId ->
                         viewModel.dismissDate()
@@ -242,7 +285,7 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
                     },
                     onManageLedgers = {
                         moreStartPage = MorePage.LEDGERS
-                        destination = MainDestination.MORE
+                        navigationState.navigate(OmniRoute.More)
                     },
                     modifier = Modifier.padding(padding),
                 )
@@ -262,7 +305,7 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
                     onDismissStatementTable = viewModel::dismissStatementTable,
                     onAddTransaction = {
                         viewModel.startNewTransaction()
-                        destination = MainDestination.ADD
+                        navigationState.navigate(OmniRoute.TransactionEditor)
                     },
                     modifier = Modifier.padding(padding),
                 )
@@ -305,7 +348,24 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
                     state = moreState,
                     viewModel = viewModel,
                     initialPage = moreStartPage,
+                    onRequestNotificationPermission = {
+                        if (Build.VERSION.SDK_INT >= 33 && !notificationPermissionRequested) {
+                            notificationPermissionRequested = true
+                            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    },
+                    dynamicColorEnabled = dynamicColorEnabled.value,
+                    onDynamicColorChanged = { enabled ->
+                        dynamicColorEnabled.value = enabled
+                        context.getSharedPreferences("android_ui", 0)
+                            .edit()
+                            .putBoolean("dynamic_color", enabled)
+                            .apply()
+                    },
                     modifier = Modifier.padding(padding),
+                )
+            }
+                    } },
                 )
             }
         }
@@ -328,10 +388,25 @@ fun OmniFlowApp(viewModel: OmniFlowViewModel) {
                 onEdit = { transactionId ->
                     viewModel.dismissTransactionRecordDetail()
                     viewModel.editTransaction(transactionId)
-                    destination = MainDestination.ADD
+                    navigationState.navigate(OmniRoute.TransactionEditor)
                 },
                 onDelete = viewModel::deleteTransactionRecordDetail,
             )
+        }
+        if (showDiscardDialog) {
+            AlertDialog(
+                onDismissRequest = { showDiscardDialog = false },
+                title = { Text("放弃未保存的交易？") },
+                text = { Text("当前输入还没有保存，返回后将丢失这些内容。") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showDiscardDialog = false
+                        navigationState.goBack()
+                    }) { Text("放弃") }
+                },
+                dismissButton = { TextButton(onClick = { showDiscardDialog = false }) { Text("继续编辑") } },
+            )
+        }
         }
         }
     }
@@ -353,6 +428,84 @@ private fun themePrimaryContainerColor(themeColor: ThemeColor, darkTheme: Boolea
     ThemeColor.SOFT_CORAL -> Color(if (darkTheme) 0xFF5E332F else 0xFFF6E2DF)
     ThemeColor.WARM_AMBER -> Color(if (darkTheme) 0xFF523F24 else 0xFFF2E7D3)
     ThemeColor.GRAPHITE -> Color(if (darkTheme) 0xFF2A2A2A else 0xFFE7E7E7)
+}
+
+private fun themeSecondaryColor(themeColor: ThemeColor, darkTheme: Boolean): Color = when (themeColor) {
+    ThemeColor.MIST_BLUE -> Color(if (darkTheme) 0xFFB4C7D8 else 0xFF456274)
+    ThemeColor.SAGE -> Color(if (darkTheme) 0xFFB6CCBB else 0xFF476653)
+    ThemeColor.LAVENDER -> Color(if (darkTheme) 0xFFC7BEDB else 0xFF5D5577)
+    ThemeColor.SOFT_CORAL -> Color(if (darkTheme) 0xFFF0BDB7 else 0xFF7B4A45)
+    ThemeColor.WARM_AMBER -> Color(if (darkTheme) 0xFFE2C28F else 0xFF6D552D)
+    ThemeColor.GRAPHITE -> Color(if (darkTheme) 0xFFD0C5D0 else 0xFF625A62)
+}
+
+private fun themeTertiaryColor(themeColor: ThemeColor, darkTheme: Boolean): Color = when (themeColor) {
+    ThemeColor.MIST_BLUE -> Color(if (darkTheme) 0xFFD4B9B0 else 0xFF795651)
+    ThemeColor.SAGE -> Color(if (darkTheme) 0xFFD2C39D else 0xFF705E2D)
+    ThemeColor.LAVENDER -> Color(if (darkTheme) 0xFFE7B9C7 else 0xFF7A4B5E)
+    ThemeColor.SOFT_CORAL -> Color(if (darkTheme) 0xFFD1C0E5 else 0xFF654A75)
+    ThemeColor.WARM_AMBER -> Color(if (darkTheme) 0xFFC4C8E8 else 0xFF4F587D)
+    ThemeColor.GRAPHITE -> Color(if (darkTheme) 0xFFBBCBD5 else 0xFF4B5F6B)
+}
+
+private fun omniColorScheme(
+    themeColor: ThemeColor,
+    darkTheme: Boolean,
+    dynamicColorEnabled: Boolean,
+    context: android.content.Context,
+): ColorScheme {
+    if (dynamicColorEnabled && android.os.Build.VERSION.SDK_INT >= 31) {
+        return if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    }
+    val primary = themePrimaryColor(themeColor, darkTheme)
+    val primaryContainer = themePrimaryContainerColor(themeColor, darkTheme)
+    val secondary = themeSecondaryColor(themeColor, darkTheme)
+    val tertiary = themeTertiaryColor(themeColor, darkTheme)
+    return if (darkTheme) {
+        darkColorScheme(
+            primary = primary,
+            onPrimary = Color(0xFF111111),
+            primaryContainer = primaryContainer,
+            onPrimaryContainer = primary,
+            secondary = secondary,
+            onSecondary = Color(0xFF172027),
+            secondaryContainer = Color(0xFF334853),
+            onSecondaryContainer = Color(0xFFD8E9F1),
+            tertiary = tertiary,
+            onTertiary = Color(0xFF251A22),
+            tertiaryContainer = Color(0xFF513B49),
+            onTertiaryContainer = Color(0xFFFFD9E8),
+            surface = Color(0xFF141414),
+            surfaceVariant = Color(0xFF202020),
+            background = Color(0xFF101010),
+            onSurface = Color(0xFFF5F5F5),
+            onSurfaceVariant = Color(0xFFB9B9B9),
+            outline = Color(0xFF8F8F8F),
+            outlineVariant = Color(0xFF454545),
+        )
+    } else {
+        lightColorScheme(
+            primary = primary,
+            onPrimary = Color.White,
+            primaryContainer = primaryContainer,
+            onPrimaryContainer = primary,
+            secondary = secondary,
+            onSecondary = Color.White,
+            secondaryContainer = Color(0xFFD9E8EF),
+            onSecondaryContainer = Color(0xFF1A313C),
+            tertiary = tertiary,
+            onTertiary = Color.White,
+            tertiaryContainer = Color(0xFFF4DCE8),
+            onTertiaryContainer = Color(0xFF321624),
+            surface = Color.White,
+            surfaceVariant = Color(0xFFF5F5F5),
+            background = Color.White,
+            onSurface = Color(0xFF171717),
+            onSurfaceVariant = Color(0xFF656565),
+            outline = Color(0xFF656565),
+            outlineVariant = Color(0xFFD2D2D2),
+        )
+    }
 }
 
 @Composable
@@ -396,23 +549,82 @@ private fun PrimaryNavigation(
 }
 
 @Composable
+private fun PrimaryNavigationRail(
+    destination: MainDestination,
+    onDestination: (MainDestination) -> Unit,
+    onAdd: () -> Unit,
+) {
+    NavigationRail(
+        header = {
+            FloatingActionButton(onClick = onAdd, modifier = Modifier.padding(vertical = 12.dp)) {
+                Icon(Icons.Default.Add, contentDescription = "新增交易")
+            }
+        },
+    ) {
+        listOf(
+            MainDestination.HOME,
+            MainDestination.ANALYTICS,
+            MainDestination.SEARCH,
+            MainDestination.MORE,
+        ).forEach { item ->
+            NavigationRailItem(
+                selected = destination == item,
+                onClick = { onDestination(item) },
+                icon = { Icon(item.icon, contentDescription = item.label) },
+                label = { Text(item.label) },
+            )
+        }
+    }
+}
+
+@Composable
 private fun AppLockGate(enabled: Boolean, content: @Composable () -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var locked by rememberSaveable(enabled) { mutableStateOf(enabled) }
     var authInProgress by remember { mutableStateOf(false) }
     var authError by remember { mutableStateOf<String?>(null) }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        authInProgress = false
-        locked = result.resultCode != Activity.RESULT_OK
+    val activity = context as? FragmentActivity
+    val biometricPrompt = remember(activity) {
+        activity?.let { fragmentActivity ->
+            BiometricPrompt(
+                fragmentActivity,
+                ContextCompat.getMainExecutor(fragmentActivity),
+                object : BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                        authInProgress = false
+                        authError = null
+                        locked = false
+                    }
+
+                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                        authInProgress = false
+                        if (errorCode != BiometricPrompt.ERROR_USER_CANCELED &&
+                            errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON
+                        ) {
+                            authError = errString.toString()
+                        }
+                    }
+                },
+            )
+        }
     }
     fun requestUnlock() {
-        val manager = context.getSystemService(KeyguardManager::class.java)
-        val intent = manager.createConfirmDeviceCredentialIntent("解锁 OmniFlow", "请验证设备凭据")
-        if (intent == null) authError = "设备未设置锁屏密码，无法解锁应用" else {
+        if (biometricPrompt == null) {
+            authError = "当前设备无法使用系统身份验证"
+        } else {
             authError = null
             authInProgress = true
-            launcher.launch(intent)
+            biometricPrompt.authenticate(
+                BiometricPrompt.PromptInfo.Builder()
+                    .setTitle("解锁 OmniFlow")
+                    .setSubtitle("请验证生物识别或设备凭据")
+                    .setAllowedAuthenticators(
+                        BiometricManager.Authenticators.BIOMETRIC_WEAK or
+                            BiometricManager.Authenticators.DEVICE_CREDENTIAL,
+                    )
+                    .build(),
+            )
         }
     }
     DisposableEffect(lifecycleOwner, enabled) {
@@ -465,7 +677,9 @@ private fun HomeScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 16.dp)
+                    .widthIn(max = 1040.dp)
+                    .wrapContentWidth(Alignment.CenterHorizontally),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Spacer(Modifier.height(8.dp))

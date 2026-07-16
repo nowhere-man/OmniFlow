@@ -58,7 +58,13 @@ import com.omniflow.shared.domain.model.Tag
 import com.omniflow.shared.domain.model.TransactionType
 
 @Composable
-internal fun ManagementPage(page: MorePage, state: MoreUiState, viewModel: OmniFlowViewModel, onPage: (MorePage) -> Unit) {
+internal fun ManagementPage(
+    page: MorePage,
+    state: MoreUiState,
+    viewModel: OmniFlowViewModel,
+    onPage: (MorePage) -> Unit,
+    onRequestNotificationPermission: () -> Unit,
+) {
     when (page) {
         MorePage.LEDGERS -> LedgerManagement(state, viewModel)
         MorePage.ACCOUNTS -> AccountManagement(state, viewModel)
@@ -66,7 +72,7 @@ internal fun ManagementPage(page: MorePage, state: MoreUiState, viewModel: OmniF
         MorePage.CATEGORIES -> CategoryManagement(state, viewModel)
         MorePage.TAGS -> TagManagement(state, viewModel)
         MorePage.RULES -> RuleManagement(state, viewModel)
-        MorePage.REMINDERS -> ReminderManagement(state, viewModel)
+        MorePage.REMINDERS -> ReminderManagement(state, viewModel, onRequestNotificationPermission)
         else -> Unit
     }
 }
@@ -462,7 +468,11 @@ private fun RuleDialog(
 }
 
 @Composable
-private fun ReminderManagement(state: MoreUiState, viewModel: OmniFlowViewModel) {
+private fun ReminderManagement(
+    state: MoreUiState,
+    viewModel: OmniFlowViewModel,
+    onRequestNotificationPermission: () -> Unit,
+) {
     var editing by remember { mutableStateOf<Reminder?>(null) }
     var showNew by remember { mutableStateOf(false) }
     ManagementList("新建提醒", { showNew = true }, state.error) {
@@ -473,12 +483,16 @@ private fun ReminderManagement(state: MoreUiState, viewModel: OmniFlowViewModel)
                 onEdit = { editing = reminder },
                 onDelete = { viewModel.deleteReminder(reminder.id) },
             ) {
-                Switch(!reminder.paused, { enabled -> viewModel.setReminderPaused(reminder, !enabled) })
+                Switch(!reminder.paused, { enabled ->
+                    if (enabled) onRequestNotificationPermission()
+                    viewModel.setReminderPaused(reminder, !enabled)
+                })
             }
         }
     }
     if (showNew || editing != null) {
         ReminderDialog(editing, onDismiss = { showNew = false; editing = null }) { type, name, amount, schedule, paused ->
+            if (!paused) onRequestNotificationPermission()
             viewModel.saveReminder(editing?.id, type, name, amount, schedule, paused)
             showNew = false
             editing = null
